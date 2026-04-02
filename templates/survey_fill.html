@@ -80,8 +80,9 @@
                         </label>
                     `).join('');
                 } else if (q.type === 'NumberQuestion') {
+                    const step = q.mustBeInteger ? '1' : 'any';
                     inputHtml = `<input type="number" oninput="onInputChange('${q.questionId}', this)" 
-                        class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="请输入数字">`;
+                        step="${step}" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="请输入数字">`;
                 } else {
                     inputHtml = `<textarea oninput="onInputChange('${q.questionId}', this)" 
                         class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none" rows="3" placeholder="请输入内容"></textarea>`;

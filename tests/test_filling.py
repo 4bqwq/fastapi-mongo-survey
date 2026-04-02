@@ -116,6 +116,30 @@ async def test_filling_validation():
         assert resp.status_code == 403
 
 @pytest.mark.anyio
+async def test_number_question_allows_decimal_when_not_integer_only():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        login_resp = await ac.post("/api/v1/auth/login", json={"username": "test_filler", "password": "password"})
+        token = login_resp.json()["data"]["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        create_resp = await ac.post("/api/v1/surveys", json={"title": "Decimal Allowed"}, headers=headers)
+        survey_id = create_resp.json()["data"]["survey_id"]
+
+        schema = {
+            "questions": [
+                {"questionId": "q1", "type": "NumberQuestion", "orderIndex": 1, "isRequired": True, "title": "小数题", "minValue": 0, "maxValue": 10, "mustBeInteger": False}
+            ],
+            "logic_rules": []
+        }
+        schema_resp = await ac.put(f"/api/v1/surveys/{survey_id}/schema", json=schema, headers=headers)
+        assert schema_resp.status_code == 200
+
+        await ac.patch(f"/api/v1/surveys/{survey_id}/status", json={"status": "PUBLISHED"}, headers=headers)
+
+        resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q1": 1.5}}, headers=headers)
+        assert resp.status_code == 200
+
+@pytest.mark.anyio
 async def test_choice_logic_requires_exact_match():
     questions = [
         {
