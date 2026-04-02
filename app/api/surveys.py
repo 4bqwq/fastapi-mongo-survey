@@ -110,7 +110,8 @@ async def update_survey_status(
         "code": 200,
         "data": {
             "survey_id": survey_id,
-            "status": status_in.status
+            "status": status_in.status,
+            "access_url": f"/survey/{survey_id}"
         }
     }
 

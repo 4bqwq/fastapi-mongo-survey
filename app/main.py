@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from app.core.database import connect_to_mongo, close_mongo_connection
 from app.api.auth import router as auth_router
 from app.api.surveys import router as survey_router
+from app.api.answers import router as answer_router
 import os
 
 @asynccontextmanager
@@ -27,6 +28,7 @@ templates = Jinja2Templates(directory="templates")
 # Include Routers
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(survey_router, prefix="/api/v1")
+app.include_router(answer_router, prefix="/api/v1")
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -47,6 +49,10 @@ async def dashboard_page(request: Request):
 @app.get("/editor/{survey_id}", response_class=HTMLResponse)
 async def editor_page(request: Request, survey_id: str):
     return templates.TemplateResponse(request=request, name="editor.html", context={"survey_id": survey_id})
+
+@app.get("/survey/{survey_id}", response_class=HTMLResponse)
+async def survey_fill_page(request: Request, survey_id: str):
+    return templates.TemplateResponse(request=request, name="survey_fill.html", context={"survey_id": survey_id})
 
 @app.get("/health")
 async def health():
