@@ -5,6 +5,7 @@ from app.api.deps import get_current_user
 from app.core.database import get_database
 from datetime import datetime
 from bson import ObjectId
+from typing import List
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
 
@@ -13,6 +14,35 @@ def serialize_dt(value):
 
 def get_question_label(question: dict) -> str:
     return f"第{question['orderIndex']}题"
+
+def normalize_choice_condition(raw_condition: str, question: dict) -> str:
+    q_label = get_question_label(question)
+    tokens = [token for token in str(raw_condition).split() if token]
+    if not tokens:
+        raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的跳转条件不能为空"})
+
+    indexes: List[int] = []
+    seen = set()
+    max_index = len(question.get("options", []))
+
+    for token in tokens:
+        if not token.isdigit():
+            raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的跳转条件必须使用选项行号，多个行号以空格分隔"})
+        index = int(token)
+        if index < 1 or index > max_index:
+            raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的跳转条件包含超出范围的行号"})
+        if index in seen:
+            raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的跳转条件包含重复行号"})
+        seen.add(index)
+        indexes.append(index)
+
+    max_select = question.get("maxSelect")
+    if max_select == 1 and len(indexes) != 1:
+        raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 为单选题，跳转条件只能填写一个行号"})
+    if max_select is not None and len(indexes) > max_select:
+        raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的跳转条件选择数量不能超过 {max_select} 项"})
+
+    return " ".join(str(index) for index in sorted(indexes))
 
 @router.post("", response_model=dict)
 async def create_survey(
@@ -214,7 +244,6 @@ async def update_survey_schema(
     for rule in rules_dict_list:
         src_id = rule["sourceQuestionId"]
         target_id = rule["targetQuestionId"]
-        cond = rule["triggerCondition"]
 
         if src_id not in q_map or target_id not in q_map:
             raise HTTPException(422, detail={"code": 42201, "message": f"规则 {rule.get('ruleId')} 关联题目不存在"})
@@ -222,6 +251,11 @@ async def update_survey_schema(
         src_q = q_map[src_id]
         target_q = q_map[target_id]
         src_label = get_question_label(src_q)
+        cond = rule["triggerCondition"]
+
+        if src_q["type"] == "ChoiceQuestion":
+            cond = normalize_choice_condition(cond, src_q)
+            rule["triggerCondition"] = cond
         
         if target_q["orderIndex"] <= src_q["orderIndex"]:
             raise HTTPException(422, detail={"code": 42201, "message": f"{src_label} 的跳转目标必须在当前题目之后"})

@@ -55,7 +55,7 @@
                 <h3 class="font-bold mb-4 text-sm uppercase text-gray-400">设置项说明</h3>
                 <ul class="text-xs space-y-2 text-gray-500">
                     <li>• <b>必答题</b>：开启后用户必须填写此题。</li>
-                    <li>• <b>跳转逻辑</b>：当回答匹配条件时，将直接跳转到目标题目，跳过中间题目。</li>
+                    <li>• <b>跳转逻辑</b>：选择题请用选项行号填写条件，如 `1` 或 `1 3`，且仅在选择组合完全一致时触发。</li>
                     <li>• <b>校验</b>：目标题目必须在当前题目之后。</li>
                 </ul>
             </div>
@@ -187,7 +187,7 @@
                 let rulesHtml = rulesForQ.map((r, ri) => `
                     <div class="flex items-center space-x-2 text-sm bg-white p-2 rounded border border-blue-100 mb-2">
                         <span>若为</span>
-                        <input type="text" value="${r.triggerCondition}" onchange="updateRuleAttr('${r.ruleId}', 'triggerCondition', this.value)" class="border rounded p-1 w-24">
+                        <input type="text" value="${r.triggerCondition}" placeholder="${src_q_placeholder(q)}" onchange="updateRuleAttr('${r.ruleId}', 'triggerCondition', this.value)" class="border rounded p-1 w-24">
                         <span>跳至</span>
                         <select onchange="updateRuleAttr('${r.ruleId}', 'targetQuestionId', this.value)" class="border rounded p-1 flex-1">
                             <option value="">-- 请选择题目 --</option>
@@ -230,6 +230,10 @@
             const q = questions.find(q => q.questionId === id);
             if (q) q[field] = value;
             if (field === 'title' || field === 'isRequired') renderRulesSummary();
+        }
+
+        function src_q_placeholder(q) {
+            return q.type === 'ChoiceQuestion' ? '如 1 3' : '请输入值';
         }
 
         function addRule(qId) {

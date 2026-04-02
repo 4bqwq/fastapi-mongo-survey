@@ -114,6 +114,13 @@
             evaluateLogic();
         }
 
+        function normalizeChoiceCondition(question, answers) {
+            if (!Array.isArray(answers) || answers.length === 0) return null;
+            const indexes = answers.map(answer => question.options.indexOf(answer) + 1).filter(index => index > 0);
+            if (indexes.length !== answers.length) return null;
+            return indexes.sort((a, b) => a - b).join(' ');
+        }
+
         function evaluateLogic() {
             // Reset visibility
             const sortedQs = [...surveySchema.questions].sort((a, b) => a.orderIndex - b.orderIndex);
@@ -130,8 +137,9 @@
                     const rules = surveySchema.logic_rules.filter(r => r.sourceQuestionId === q.questionId);
                     for (const rule of rules) {
                         let match = false;
-                        if (Array.isArray(ans)) {
-                            match = ans.includes(rule.triggerCondition);
+                        if (q.type === 'ChoiceQuestion') {
+                            const normalizedAnswer = normalizeChoiceCondition(q, ans);
+                            match = normalizedAnswer !== null && normalizedAnswer === rule.triggerCondition;
                         } else {
                             match = String(ans) === String(rule.triggerCondition);
                         }

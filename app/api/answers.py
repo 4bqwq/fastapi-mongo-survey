@@ -12,6 +12,23 @@ router = APIRouter(prefix="/surveys", tags=["answers"])
 def get_question_label(question: dict) -> str:
     return f"第{question['orderIndex']}题"
 
+def normalize_choice_indexes(indexes: list[int]) -> str:
+    return " ".join(str(index) for index in sorted(indexes))
+
+def get_choice_answer_condition(question: dict, answer: list) -> str | None:
+    if not isinstance(answer, list) or not answer:
+        return None
+
+    option_to_index = {
+        option: idx + 1 for idx, option in enumerate(question.get("options", []))
+    }
+    indexes = []
+    for option in answer:
+        if option not in option_to_index:
+            return None
+        indexes.append(option_to_index[option])
+    return normalize_choice_indexes(indexes)
+
 def get_effective_questions(questions: list, logic_rules: list, payloads: dict) -> Set[str]:
     """Calculate which questions are actually seen by the user based on logic jumps."""
     effective_ids = set()
@@ -30,8 +47,9 @@ def get_effective_questions(questions: list, logic_rules: list, payloads: dict) 
             rules = [r for r in logic_rules if r["sourceQuestionId"] == q["questionId"]]
             for rule in rules:
                 match = False
-                if isinstance(ans, list):
-                    match = rule["triggerCondition"] in ans
+                if q["type"] == "ChoiceQuestion":
+                    normalized_answer = get_choice_answer_condition(q, ans)
+                    match = normalized_answer is not None and normalized_answer == rule["triggerCondition"]
                 else:
                     match = str(ans) == str(rule["triggerCondition"])
                 

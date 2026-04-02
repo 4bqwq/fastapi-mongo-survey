@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.core.database import connect_to_mongo, close_mongo_connection, get_database
+from app.api.answers import get_effective_questions
 from bson import ObjectId
 from datetime import datetime, timedelta
 
@@ -113,3 +114,30 @@ async def test_filling_validation():
         await ac.patch(f"/api/v1/surveys/{survey_id}/status", json={"status": "CLOSED"}, headers=headers)
         resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q1": "hello"}}, headers=headers)
         assert resp.status_code == 403
+
+@pytest.mark.anyio
+async def test_choice_logic_requires_exact_match():
+    questions = [
+        {
+            "questionId": "q1",
+            "type": "ChoiceQuestion",
+            "orderIndex": 1,
+            "title": "多选题",
+            "options": ["A", "B", "C"],
+            "minSelect": 1,
+            "maxSelect": 2
+        },
+        {"questionId": "q2", "type": "TextQuestion", "orderIndex": 2, "title": "组合命中题"},
+        {"questionId": "q3", "type": "TextQuestion", "orderIndex": 3, "title": "单项命中题"},
+        {"questionId": "q4", "type": "TextQuestion", "orderIndex": 4, "title": "结束题"}
+    ]
+    logic_rules = [
+        {"ruleId": "r1", "sourceQuestionId": "q1", "targetQuestionId": "q3", "triggerCondition": "1"},
+        {"ruleId": "r2", "sourceQuestionId": "q1", "targetQuestionId": "q4", "triggerCondition": "1 2"}
+    ]
+
+    effective_ids = get_effective_questions(questions, logic_rules, {"q1": ["A", "B"]})
+    assert effective_ids == {"q1", "q4"}
+
+    single_effective_ids = get_effective_questions(questions, logic_rules, {"q1": ["A"]})
+    assert single_effective_ids == {"q1", "q3", "q4"}

@@ -49,7 +49,7 @@
 | ├── `ruleId`                  | String       | 是       | 无         | 规则业务标识                                                 |
 | ├── `sourceQuestionId`        | String       | 是       | 无         | 触发条件的源题号                                             |
 | ├── `targetQuestionId`        | String       | 是       | 无         | 命中后跳转的目标题号。必须大于源题号的 orderIndex。           |
-| ├── `triggerCondition`        | String       | 是       | 无         | 触发值表达式或具体匹配值。同题目下触发条件不可重复。           |
+| ├── `triggerCondition`        | String       | 是       | 无         | 触发值表达式或具体匹配值。同题目下触发条件不可重复；若源题为单/多选题，则存储标准化后的选项行号组合，如 `1`、`1 3` |
 | `createdAt`                   | Date         | 是       | 当前时间   | 创建时间                                                     |
 | `updatedAt`                   | Date         | 是       | 当前时间   | 更新时间                                                     |
 | `__v`                         | Int32        | 是       | 0          | 数据版本号，用于防并发修改更新覆盖                           |

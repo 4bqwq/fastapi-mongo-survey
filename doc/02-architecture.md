@@ -218,3 +218,6 @@ def compute_next_question(current_q: Question, payload: Any, rules: List[LogicRu
             
     return survey.get_question_by_order(current_q.order_index + 1)
 ```
+
+补充约束：
+对于单选题与多选题，`LogicRule.trigger_condition` 存储的是按空格分隔的选项行号组合。规则求值前必须先将用户当前答案转换为同样的标准化行号字符串，再执行全量相等比较，而不是基于单个选项做包含判断。

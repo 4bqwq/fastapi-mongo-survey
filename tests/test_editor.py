@@ -63,7 +63,7 @@ async def test_update_schema_polymorphism():
                     "ruleId": "r1",
                     "sourceQuestionId": "q1",
                     "targetQuestionId": "q3",
-                    "triggerCondition": "A"
+                    "triggerCondition": "1"
                 }
             ]
         }
@@ -90,4 +90,34 @@ async def test_update_schema_polymorphism():
         assert q3["maxLength"] == 500
         
         assert len(survey["logicRules"]) == 1
-        assert survey["logicRules"][0]["triggerCondition"] == "A"
+        assert survey["logicRules"][0]["triggerCondition"] == "1"
+
+        invalid_schema_payload = {
+            "questions": [
+                {
+                    "questionId": "q1",
+                    "type": "ChoiceQuestion",
+                    "title": "第1题",
+                    "orderIndex": 1,
+                    "options": ["A", "B"],
+                    "maxSelect": 2
+                },
+                {
+                    "questionId": "q2",
+                    "type": "TextQuestion",
+                    "title": "第2题",
+                    "orderIndex": 2
+                }
+            ],
+            "logic_rules": [
+                {
+                    "ruleId": "r2",
+                    "sourceQuestionId": "q1",
+                    "targetQuestionId": "q2",
+                    "triggerCondition": "1 1"
+                }
+            ]
+        }
+        invalid_resp = await ac.put(f"/api/v1/surveys/{survey_id}/schema", json=invalid_schema_payload, headers=headers)
+        assert invalid_resp.status_code == 422
+        assert "重复行号" in invalid_resp.json()["detail"]["message"]
