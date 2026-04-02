@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问卷编辑器 - 问卷系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/js/auth.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-md p-4 flex justify-between items-center">
+        <div class="flex items-center space-x-4">
+            <a href="/dashboard" class="text-blue-600 hover:underline">← 返回看板</a>
+            <h1 id="surveyTitle" class="text-xl font-bold text-gray-800">加载中...</h1>
+        </div>
+        <button onclick="saveSchema()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg shadow-sm transition">
+            保存问卷
+        </button>
+    </nav>
+
+    <div class="container mx-auto p-6 flex flex-col md:flex-row gap-6">
+        <!-- Main Editor Area -->
+        <div class="flex-1 space-y-4">
+            <div id="questionsContainer" class="space-y-4">
+                <!-- Questions will be rendered here -->
+            </div>
+            
+            <div class="bg-white p-6 rounded-xl border-2 border-dashed border-gray-300 flex justify-center space-x-4">
+                <button onclick="addQuestion('ChoiceQuestion')" class="text-blue-600 hover:bg-blue-50 px-4 py-2 rounded">+ 选择题</button>
+                <button onclick="addQuestion('TextQuestion')" class="text-blue-600 hover:bg-blue-50 px-4 py-2 rounded">+ 文本题</button>
+                <button onclick="addQuestion('NumberQuestion')" class="text-blue-600 hover:bg-blue-50 px-4 py-2 rounded">+ 数字题</button>
+            </div>
+        </div>
+
+        <!-- Logic & Info Sidebar -->
+        <div class="w-full md:w-80 space-y-4">
+            <div class="bg-white p-6 rounded-xl shadow-sm border">
+                <h3 class="font-bold mb-4">跳转规则说明</h3>
+                <p class="text-sm text-gray-500">在每个题目下方配置跳转逻辑。满足条件时，将跳过中间题目直接进入目标题目。</p>
+            </div>
+            <div id="logicRulesSummary" class="bg-white p-6 rounded-xl shadow-sm border">
+                <h3 class="font-bold mb-4">当前规则列表</h3>
+                <div id="rulesList" class="space-y-2 text-sm">
+                    <!-- Rules summary -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const surveyId = "{{ survey_id }}";
+        let questions = [];
+        let logicRules = [];
+
+        async function loadSchema() {
+            const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/schema`);
+            const result = await response.json();
+            if (response.ok) {
+                document.getElementById('surveyTitle').textContent = result.data.title;
+                questions = result.data.questions || [];
+                logicRules = result.data.logic_rules || [];
+                renderEditor();
+            }
+        }
+
+        function addQuestion(type) {
+            const id = 'q_' + Math.random().toString(36).substr(2, 9);
+            const newQ = {
+                questionId: id,
+                type: type,
+                isRequired: true,
+                orderIndex: questions.length + 1,
+                title: '未命名题目'
+            };
+            if (type === 'ChoiceQuestion') {
+                newQ.options = ['选项1', '选项2'];
+                newQ.minSelect = 1;
+                newQ.maxSelect = 1;
+            }
+            questions.push(newQ);
+            renderEditor();
+        }
+
+        function removeQuestion(id) {
+            questions = questions.filter(q => q.questionId !== id);
+            logicRules = logicRules.filter(r => r.sourceQuestionId !== id && r.targetQuestionId !== id);
+            renderEditor();
+        }
+
+        function renderEditor() {
+            const container = document.getElementById('questionsContainer');
+            container.innerHTML = '';
+
+            questions.forEach((q, index) => {
+                const qDiv = document.createElement('div');
+                qDiv.className = 'bg-white p-6 rounded-xl shadow-sm border relative';
+                
+                let typeSpecHtml = '';
+                if (q.type === 'ChoiceQuestion') {
+                    typeSpecHtml = `
+                        <div class="mt-4">
+                            <label class="text-xs font-bold text-gray-400 uppercase">选项集 (每行一个)</label>
+                            <textarea onchange="updateQ('${q.questionId}', 'options', this.value.split('\\n'))" class="w-full border rounded p-2 mt-1">${(q.options || []).join('\n')}</textarea>
+                            <div class="grid grid-cols-2 gap-4 mt-2">
+                                <div>
+                                    <label class="text-xs">最小选择</label>
+                                    <input type="number" value="${q.minSelect || 1}" onchange="updateQ('${q.questionId}', 'minSelect', parseInt(this.value))" class="w-full border rounded p-1">
+                                </div>
+                                <div>
+                                    <label class="text-xs">最大选择</label>
+                                    <input type="number" value="${q.maxSelect || 1}" onchange="updateQ('${q.questionId}', 'maxSelect', parseInt(this.value))" class="w-full border rounded p-1">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (q.type === 'NumberQuestion') {
+                    typeSpecHtml = `
+                        <div class="grid grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="text-xs">最小值</label>
+                                <input type="number" value="${q.minValue || ''}" onchange="updateQ('${q.questionId}', 'minValue', parseFloat(this.value))" class="w-full border rounded p-1">
+                            </div>
+                            <div>
+                                <label class="text-xs">最大值</label>
+                                <input type="number" value="${q.maxValue || ''}" onchange="updateQ('${q.questionId}', 'maxValue', parseFloat(this.value))" class="w-full border rounded p-1">
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Logic rule for this question
+                const existingRule = logicRules.find(r => r.sourceQuestionId === q.questionId);
+                const targetOptions = questions.filter(t => t.orderIndex > q.orderIndex).map(t => `<option value="${t.questionId}" ${existingRule?.targetQuestionId === t.questionId ? 'selected' : ''}>${t.orderIndex}. ${t.title || '无标题'}</option>`).join('');
+
+                qDiv.innerHTML = `
+                    <div class="flex justify-between">
+                        <span class="text-gray-400 font-mono">#${index + 1} [${q.type}]</span>
+                        <button onclick="removeQuestion('${q.questionId}')" class="text-red-400 hover:text-red-600">删除</button>
+                    </div>
+                    <input type="text" value="${q.title || ''}" onchange="updateQ('${q.questionId}', 'title', this.value)" placeholder="请输入题目标题" class="text-lg font-bold w-full border-b focus:border-blue-500 outline-none py-1 mt-2">
+                    
+                    ${typeSpecHtml}
+
+                    <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+                        <h5 class="text-xs font-bold text-blue-800 mb-2">跳转逻辑</h5>
+                        <div class="flex items-center space-x-2 text-sm">
+                            <span>若回答为</span>
+                            <input type="text" value="${existingRule?.triggerCondition || ''}" onchange="updateRule('${q.questionId}', 'triggerCondition', this.value)" placeholder="值" class="border rounded p-1 w-20">
+                            <span>则跳转至</span>
+                            <select onchange="updateRule('${q.questionId}', 'targetQuestionId', this.value)" class="border rounded p-1 flex-1">
+                                <option value="">下一题 (默认)</option>
+                                ${targetOptions}
+                            </select>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(qDiv);
+            });
+            renderRulesSummary();
+        }
+
+        function updateQ(id, field, value) {
+            const q = questions.find(q => q.questionId === id);
+            if (q) q[field] = value;
+            renderRulesSummary();
+        }
+
+        function updateRule(sourceId, field, value) {
+            let rule = logicRules.find(r => r.sourceQuestionId === sourceId);
+            if (!value && field === 'targetQuestionId') {
+                logicRules = logicRules.filter(r => r.sourceQuestionId !== sourceId);
+            } else {
+                if (!rule) {
+                    rule = { ruleId: 'r_' + Math.random().toString(36).substr(2, 9), sourceQuestionId: sourceId, triggerCondition: '', targetQuestionId: '' };
+                    logicRules.push(rule);
+                }
+                rule[field] = value;
+            }
+            renderRulesSummary();
+        }
+
+        function renderRulesSummary() {
+            const list = document.getElementById('rulesList');
+            list.innerHTML = logicRules.map(r => {
+                const source = questions.find(q => q.questionId === r.sourceQuestionId);
+                const target = questions.find(q => q.questionId === r.targetQuestionId);
+                return `<div class="p-2 bg-gray-50 rounded border">如果 <b>${source?.orderIndex || '?'}</b> 等于 "${r.triggerCondition}", 跳至 <b>${target?.orderIndex || '?'}</b></div>`;
+            }).join('') || '<p class="text-gray-400">暂无规则</p>';
+        }
+
+        async function saveSchema() {
+            // Re-assign order indices based on current array order
+            questions.forEach((q, i) => q.orderIndex = i + 1);
+
+            const payload = {
+                questions: questions,
+                logic_rules: logicRules
+            };
+
+            const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/schema`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                alert('保存成功！');
+            } else {
+                const err = await response.json();
+                alert('保存失败: ' + JSON.stringify(err.detail));
+            }
+        }
+
+        loadSchema();
+    </script>
+</body>
+</html>

@@ -44,6 +44,10 @@ async def register_page(request: Request):
 async def dashboard_page(request: Request):
     return templates.TemplateResponse(request=request, name="dashboard.html")
 
+@app.get("/editor/{survey_id}", response_class=HTMLResponse)
+async def editor_page(request: Request, survey_id: str):
+    return templates.TemplateResponse(request=request, name="editor.html", context={"survey_id": survey_id})
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
