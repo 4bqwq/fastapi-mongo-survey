@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据统计 - 问卷系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/auth.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-md p-4 flex justify-between items-center">
+        <div class="flex items-center space-x-4">
+            <a href="/dashboard" class="text-blue-600 hover:underline">← 返回看板</a>
+            <h1 id="surveyTitle" class="text-xl font-bold text-gray-800">问卷统计报表</h1>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-6">
+        <div class="bg-white p-8 rounded-xl shadow-sm border mb-8 flex items-center justify-around text-center">
+            <div>
+                <p class="text-gray-500 text-sm uppercase font-bold tracking-wider">总回收答卷</p>
+                <p id="totalRespondents" class="text-4xl font-black text-blue-600">0</p>
+            </div>
+        </div>
+
+        <div id="statsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Charts and stats will be rendered here -->
+        </div>
+    </main>
+
+    <script>
+        const surveyId = "{{ survey_id }}";
+
+        async function loadStats() {
+            const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/statistics`);
+            const result = await response.json();
+            if (response.ok) {
+                document.getElementById('totalRespondents').textContent = result.data.macro_stats.total_respondents;
+                renderMicroStats(result.data.micro_stats);
+            } else {
+                alert('获取统计失败: ' + result.detail?.message);
+            }
+        }
+
+        function renderMicroStats(stats) {
+            const container = document.getElementById('statsContainer');
+            container.innerHTML = '';
+
+            for (const [qId, data] of Object.entries(stats)) {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-xl shadow-sm border flex flex-col';
+                
+                let contentHtml = `<h3 class="font-bold text-gray-800 mb-4">${data.title || qId}</h3>`;
+                
+                if (data.type === 'ChoiceQuestion') {
+                    const canvasId = `chart_${qId}`;
+                    contentHtml += `<div class="relative h-64"><canvas id="${canvasId}"></canvas></div>`;
+                    card.innerHTML = contentHtml;
+                    container.appendChild(card);
+                    
+                    renderChart(canvasId, data.distribution);
+                } else if (data.type === 'NumberQuestion') {
+                    contentHtml += `
+                        <div class="flex-1 flex flex-col justify-center items-center py-10">
+                            <span class="text-5xl font-bold text-green-500">${data.average_value}</span>
+                            <span class="text-gray-400 mt-2 text-sm">算术平均值 (${data.valid_answers} 份有效回答)</span>
+                        </div>
+                    `;
+                    card.innerHTML = contentHtml;
+                    container.appendChild(card);
+                } else if (data.type === 'TextQuestion') {
+                    const listHtml = data.text_list.map(t => `<li class="p-2 border-b text-sm text-gray-600">${t}</li>`).join('') || '<li class="text-gray-400 italic">暂无回答</li>';
+                    contentHtml += `<ul class="max-h-64 overflow-y-auto bg-gray-50 rounded p-2">${listHtml}</ul>`;
+                    card.innerHTML = contentHtml;
+                    container.appendChild(card);
+                }
+            }
+        }
+
+        function renderChart(canvasId, distribution) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const labels = Object.keys(distribution);
+            const data = Object.values(distribution);
+
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(255, 99, 132, 0.7)',
+                            'rgba(255, 206, 86, 0.7)',
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(153, 102, 255, 0.7)',
+                            'rgba(255, 159, 64, 0.7)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        loadStats();
+    </script>
+</body>
+</html>

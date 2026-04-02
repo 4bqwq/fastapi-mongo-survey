@@ -54,6 +54,10 @@ async def editor_page(request: Request, survey_id: str):
 async def survey_fill_page(request: Request, survey_id: str):
     return templates.TemplateResponse(request=request, name="survey_fill.html", context={"survey_id": survey_id})
 
+@app.get("/stats/{survey_id}", response_class=HTMLResponse)
+async def survey_stats_page(request: Request, survey_id: str):
+    return templates.TemplateResponse(request=request, name="stats.html", context={"survey_id": survey_id})
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
