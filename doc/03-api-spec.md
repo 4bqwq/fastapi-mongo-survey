@@ -194,6 +194,11 @@ JSON
 
 **请求头/鉴权**：`Authorization: Bearer <Token>` (需为该问卷创建者)
 
+**跳转逻辑校验规则**：
+1. **单向性**：目标题目的 `order_index` 必须严格大于源题目的 `order_index`。
+2. **唯一性**：同一源题目下，触发条件 (`trigger_condition`) 不可重复。
+3. **存在性**：目标题目 ID 必须在提交的 `questions` 列表中存在。
+
 **请求参数**：
 
 聚合提交题目集与逻辑规则集，利用 MongoDB 文档特性整体落库。
@@ -314,7 +319,13 @@ JSON
 
 **请求方式与路径**：`POST /api/v1/surveys/{survey_id}/answers`
 
-**请求头/鉴权**：`Authorization: Bearer <Token>` (填写者必须登录)
+**请求头/鉴权**：`Authorization: Bearer <Token>` (强制要求登录)
+
+**业务校验逻辑补充**：
+1. **基于路径的必答校验**：系统根据跳转逻辑推演用户实际可见的题目路径，仅对路径内的必答题执行非空校验。
+2. **身份标识**：
+    - 若问卷开启匿名 (`is_anonymous: true`)，`respondent_id` 统一记录为 `-1`。
+    - 若问卷未开启匿名，`respondent_id` 记录当前登录用户的 ID。
 
 **请求参数**：
 

@@ -5,15 +5,52 @@ from app.api.deps import get_current_user
 from app.core.database import get_database
 from datetime import datetime
 from bson import ObjectId
-from typing import Optional
+from typing import Optional, Set
 
 router = APIRouter(prefix="/surveys", tags=["answers"])
+
+def get_effective_questions(questions: list, logic_rules: list, payloads: dict) -> Set[str]:
+    """Calculate which questions are actually seen by the user based on logic jumps."""
+    effective_ids = set()
+    sorted_qs = sorted(questions, key=lambda x: x["orderIndex"])
+    
+    i = 0
+    while i < len(sorted_qs):
+        q = sorted_qs[i]
+        effective_ids.add(q["questionId"])
+        
+        # Check if there's a matching rule for this question
+        ans = payloads.get(q["questionId"])
+        jumped = False
+        if ans:
+            # Find rules for this question
+            rules = [r for r in logic_rules if r["sourceQuestionId"] == q["questionId"]]
+            for rule in rules:
+                match = False
+                if isinstance(ans, list):
+                    match = rule["triggerCondition"] in ans
+                else:
+                    match = str(ans) == str(rule["triggerCondition"])
+                
+                if match:
+                    # Find target question index
+                    target_id = rule["targetQuestionId"]
+                    target_q = next((t for t in sorted_qs if t["questionId"] == target_id), None)
+                    if target_q:
+                        # Jump to target
+                        i = sorted_qs.index(target_q)
+                        jumped = True
+                        break
+            if jumped:
+                continue
+        i += 1
+    return effective_ids
 
 @router.post("/{survey_id}/answers", response_model=dict)
 async def submit_answer(
     survey_id: str,
     answer_in: AnswerCreate,
-    current_user: Optional[UserInDB] = Depends(get_current_user), # Spec says filler must be logged in for non-anonymous
+    current_user: UserInDB = Depends(get_current_user), # Mandatory login for all
     db = Depends(get_database)
 ):
     survey = await db.surveys.find_one({"_id": ObjectId(survey_id)})
@@ -26,15 +63,23 @@ async def submit_answer(
             detail={"code": 40302, "message": "该问卷已关闭或未发布"}
         )
 
-    # Server-side validation
     payloads = answer_in.payloads
     questions = survey.get("questions", [])
+    logic_rules = survey.get("logicRules", [])
+    
+    # Calculate effective path
+    effective_ids = get_effective_questions(questions, logic_rules, payloads)
     
     for q in questions:
         q_id = q["questionId"]
+        
+        # Skip validation for questions NOT in the effective path
+        if q_id not in effective_ids:
+            continue
+            
         ans = payloads.get(q_id)
         
-        # 1. Required check
+        # 1. Required check (only for effective questions)
         if q.get("isRequired") and (ans is None or ans == "" or (isinstance(ans, list) and len(ans) == 0)):
             raise HTTPException(
                 status_code=422,
@@ -62,9 +107,12 @@ async def submit_answer(
                     raise HTTPException(422, detail={"code": 42201, "message": f"题目 {q_id} 选项过多"})
 
     # Save to DB
+    # If anonymous, respondentId = "-1", else current_user.id
+    respondent_id = "-1" if survey.get("is_anonymous") else current_user.id
+
     answer_doc = {
         "surveyId": ObjectId(survey_id),
-        "respondentId": current_user.id if current_user and not survey["is_anonymous"] else None,
+        "respondentId": respondent_id,
         "payloads": payloads,
         "submittedAt": datetime.utcnow(),
         "createdAt": datetime.utcnow(),

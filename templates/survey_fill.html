@@ -17,7 +17,7 @@
         
         <form id="fillingForm" class="space-y-6">
             <div id="questionsContainer" class="space-y-6">
-                <!-- Questions will be rendered here -->
+                <!-- Questions -->
             </div>
             
             <div class="pt-6 border-t flex justify-center">
@@ -34,7 +34,6 @@
         let payloads = {};
 
         async function loadSurvey() {
-            // Fillers must also be logged in as per spec (GET /schema requires auth)
             if (!isLoggedIn()) {
                 window.location.href = `/login?next=/survey/${surveyId}`;
                 return;
@@ -47,7 +46,7 @@
                 document.getElementById('surveyTitle').textContent = surveySchema.title;
                 document.getElementById('surveyDesc').textContent = surveySchema.description;
                 renderQuestions();
-                evaluateLogic(); // Initial logic run
+                evaluateLogic(); 
             } else {
                 alert('获取问卷失败: ' + result.detail?.message);
             }
@@ -109,53 +108,53 @@
 
         function evaluateLogic() {
             // Reset visibility
-            surveySchema.questions.forEach(q => {
-                document.getElementById(`qbox_${q.questionId}`).classList.remove('hidden');
-            });
-
-            let hiddenQuestions = new Set();
-            
-            // Sort questions to evaluate in order
             const sortedQs = [...surveySchema.questions].sort((a, b) => a.orderIndex - b.orderIndex);
+            let visibleIds = new Set();
             
-            for (let i = 0; i < sortedQs.length; i++) {
+            let i = 0;
+            while (i < sortedQs.length) {
                 const q = sortedQs[i];
-                if (hiddenQuestions.has(q.questionId)) continue;
+                visibleIds.add(q.questionId);
+                
+                const ans = payloads[q.questionId];
+                let jumped = false;
+                if (ans) {
+                    const rules = surveySchema.logic_rules.filter(r => r.sourceQuestionId === q.questionId);
+                    for (const rule of rules) {
+                        let match = false;
+                        if (Array.isArray(ans)) {
+                            match = ans.includes(rule.triggerCondition);
+                        } else {
+                            match = String(ans) === String(rule.triggerCondition);
+                        }
 
-                const rule = surveySchema.logic_rules.find(r => r.sourceQuestionId === q.questionId);
-                if (rule && payloads[q.questionId]) {
-                    const currentAns = payloads[q.questionId];
-                    let match = false;
-                    
-                    if (Array.isArray(currentAns)) {
-                        match = currentAns.includes(rule.triggerCondition);
-                    } else {
-                        match = String(currentAns) === String(rule.triggerCondition);
-                    }
-
-                    if (match) {
-                        const targetQ = surveySchema.questions.find(t => t.questionId === rule.targetQuestionId);
-                        if (targetQ) {
-                            // Hide all questions between current and target
-                            sortedQs.forEach(middleQ => {
-                                if (middleQ.orderIndex > q.orderIndex && middleQ.orderIndex < targetQ.orderIndex) {
-                                    hiddenQuestions.add(middleQ.questionId);
-                                }
-                            });
+                        if (match) {
+                            const targetIndex = sortedQs.findIndex(t => t.questionId === rule.targetQuestionId);
+                            if (targetIndex !== -1 && targetIndex > i) {
+                                i = targetIndex;
+                                jumped = true;
+                                break;
+                            }
                         }
                     }
                 }
+                if (jumped) continue;
+                i++;
             }
 
-            hiddenQuestions.forEach(id => {
-                document.getElementById(`qbox_${id}`).classList.add('hidden');
+            surveySchema.questions.forEach(q => {
+                const el = document.getElementById(`qbox_${q.questionId}`);
+                if (visibleIds.has(q.questionId)) {
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
             });
         }
 
         document.getElementById('fillingForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // Filter payloads to only include visible questions
             const visiblePayloads = {};
             surveySchema.questions.forEach(q => {
                 const el = document.getElementById(`qbox_${q.questionId}`);

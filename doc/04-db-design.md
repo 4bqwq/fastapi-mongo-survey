@@ -44,11 +44,11 @@
 | ├── `minLength` / `maxLength` | Int32        | 否       | null       | 文本题字符长度上下限                                         |
 | ├── `minValue` / `maxValue`   | Double       | 否       | null       | 数字题极值上下限                                             |
 | ├── `mustBeInteger`           | Boolean      | 否       | false      | 数字题整数强制约束                                           |
-| `logicRules`                  | Array        | 是       | []         | 内嵌数组，存储跳转规则对象                                   |
+| `logicRules`                  | Array        | 是       | []         | 内嵌数组，存储跳转规则对象。支持针对同题目配置多个不同条件的跳转目标。 |
 | ├── `ruleId`                  | String       | 是       | 无         | 规则业务标识                                                 |
 | ├── `sourceQuestionId`        | String       | 是       | 无         | 触发条件的源题号                                             |
-| ├── `targetQuestionId`        | String       | 是       | 无         | 命中后跳转的目标题号                                         |
-| ├── `triggerCondition`        | String       | 是       | 无         | 触发值表达式或具体匹配值                                     |
+| ├── `targetQuestionId`        | String       | 是       | 无         | 命中后跳转的目标题号。必须大于源题号的 orderIndex。           |
+| ├── `triggerCondition`        | String       | 是       | 无         | 触发值表达式或具体匹配值。同题目下触发条件不可重复。           |
 | `createdAt`                   | Date         | 是       | 当前时间   | 创建时间                                                     |
 | `updatedAt`                   | Date         | 是       | 当前时间   | 更新时间                                                     |
 | `__v`                         | Int32        | 是       | 0          | 数据版本号，用于防并发修改更新覆盖                           |
@@ -67,7 +67,8 @@
 | -------------- | ------------ | -------- | ---------- | ------------------------------------------------------------ |
 | `_id`          | ObjectId     | 是       | 自动生成   | 主键，唯一答卷标识                                           |
 | `surveyId`     | ObjectId     | 是       | 无         | 目标问卷引用。需创建复合索引：`{ surveyId: 1, submittedAt: -1 }` (加速按问卷检索与统计下钻) |
-| `respondentId` | ObjectId     | 否       | null       | 填卷人引用 (匿名模式下为空)。需创建复合索引：`{ surveyId: 1, respondentId: 1 }` (防并发刷单) |
+| `respondentId` | Mixed        | 是       | 无         | 填卷人标识。若为实名问卷，存储 User ObjectId；若为匿名问卷，统一记录为 `-1`。需创建复合索引：`{ surveyId: 1, respondentId: 1 }` |
+
 | `payloads`     | Object       | 是       | {}         | 动态键值对容器。键为 `questionId`，值为单态数据(String/Double)或多态数据(Array) |
 | ├── `[q_xxx]`  | Mixed        | 否       | 无         | 动态题目键。例如：`"q_001": ["满意"]`, `"q_002": 85`。无需建立全字段索引，统计时依赖聚合管道 |
 | `submittedAt`  | Date         | 是       | 无         | 用户真实提交时间戳                                           |

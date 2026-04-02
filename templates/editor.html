@@ -19,10 +19,9 @@
     </nav>
 
     <div class="container mx-auto p-6 flex flex-col md:flex-row gap-6">
-        <!-- Main Editor Area -->
         <div class="flex-1 space-y-4">
             <div id="questionsContainer" class="space-y-4">
-                <!-- Questions will be rendered here -->
+                <!-- Questions -->
             </div>
             
             <div class="bg-white p-6 rounded-xl border-2 border-dashed border-gray-300 flex justify-center space-x-4">
@@ -32,17 +31,18 @@
             </div>
         </div>
 
-        <!-- Logic & Info Sidebar -->
         <div class="w-full md:w-80 space-y-4">
             <div class="bg-white p-6 rounded-xl shadow-sm border">
-                <h3 class="font-bold mb-4">跳转规则说明</h3>
-                <p class="text-sm text-gray-500">在每个题目下方配置跳转逻辑。满足条件时，将跳过中间题目直接进入目标题目。</p>
+                <h3 class="font-bold mb-4 text-sm uppercase text-gray-400">设置项说明</h3>
+                <ul class="text-xs space-y-2 text-gray-500">
+                    <li>• <b>必答题</b>：开启后用户必须填写此题。</li>
+                    <li>• <b>跳转逻辑</b>：当回答匹配条件时，将直接跳转到目标题目，跳过中间题目。</li>
+                    <li>• <b>校验</b>：目标题目必须在当前题目之后。</li>
+                </ul>
             </div>
             <div id="logicRulesSummary" class="bg-white p-6 rounded-xl shadow-sm border">
-                <h3 class="font-bold mb-4">当前规则列表</h3>
-                <div id="rulesList" class="space-y-2 text-sm">
-                    <!-- Rules summary -->
-                </div>
+                <h3 class="font-bold mb-4">全局规则概览</h3>
+                <div id="rulesList" class="space-y-2 text-sm"></div>
             </div>
         </div>
     </div>
@@ -100,17 +100,7 @@
                     typeSpecHtml = `
                         <div class="mt-4">
                             <label class="text-xs font-bold text-gray-400 uppercase">选项集 (每行一个)</label>
-                            <textarea onchange="updateQ('${q.questionId}', 'options', this.value.split('\\n'))" class="w-full border rounded p-2 mt-1">${(q.options || []).join('\n')}</textarea>
-                            <div class="grid grid-cols-2 gap-4 mt-2">
-                                <div>
-                                    <label class="text-xs">最小选择</label>
-                                    <input type="number" value="${q.minSelect || 1}" onchange="updateQ('${q.questionId}', 'minSelect', parseInt(this.value))" class="w-full border rounded p-1">
-                                </div>
-                                <div>
-                                    <label class="text-xs">最大选择</label>
-                                    <input type="number" value="${q.maxSelect || 1}" onchange="updateQ('${q.questionId}', 'maxSelect', parseInt(this.value))" class="w-full border rounded p-1">
-                                </div>
-                            </div>
+                            <textarea onchange="updateQ('${q.questionId}', 'options', this.value.split('\\n'))" class="w-full border rounded p-2 mt-1 font-sans text-sm">${(q.options || []).join('\n')}</textarea>
                         </div>
                     `;
                 } else if (q.type === 'NumberQuestion') {
@@ -118,39 +108,53 @@
                         <div class="grid grid-cols-2 gap-4 mt-4">
                             <div>
                                 <label class="text-xs">最小值</label>
-                                <input type="number" value="${q.minValue || ''}" onchange="updateQ('${q.questionId}', 'minValue', parseFloat(this.value))" class="w-full border rounded p-1">
+                                <input type="number" value="${q.minValue || ''}" onchange="updateQ('${q.questionId}', 'minValue', this.value === '' ? null : parseFloat(this.value))" class="w-full border rounded p-1">
                             </div>
                             <div>
                                 <label class="text-xs">最大值</label>
-                                <input type="number" value="${q.maxValue || ''}" onchange="updateQ('${q.questionId}', 'maxValue', parseFloat(this.value))" class="w-full border rounded p-1">
+                                <input type="number" value="${q.maxValue || ''}" onchange="updateQ('${q.questionId}', 'maxValue', this.value === '' ? null : parseFloat(this.value))" class="w-full border rounded p-1">
                             </div>
                         </div>
                     `;
                 }
 
-                // Logic rule for this question
-                const existingRule = logicRules.find(r => r.sourceQuestionId === q.questionId);
-                const targetOptions = questions.filter(t => t.orderIndex > q.orderIndex).map(t => `<option value="${t.questionId}" ${existingRule?.targetQuestionId === t.questionId ? 'selected' : ''}>${t.orderIndex}. ${t.title || '无标题'}</option>`).join('');
+                const rulesForQ = logicRules.filter(r => r.sourceQuestionId === q.questionId);
+                const targetQs = questions.filter(t => t.orderIndex > q.orderIndex);
+                
+                let rulesHtml = rulesForQ.map((r, ri) => `
+                    <div class="flex items-center space-x-2 text-sm bg-white p-2 rounded border border-blue-100 mb-2">
+                        <span>若为</span>
+                        <input type="text" value="${r.triggerCondition}" onchange="updateRuleAttr('${r.ruleId}', 'triggerCondition', this.value)" class="border rounded p-1 w-24">
+                        <span>跳至</span>
+                        <select onchange="updateRuleAttr('${r.ruleId}', 'targetQuestionId', this.value)" class="border rounded p-1 flex-1">
+                            <option value="">-- 请选择题目 --</option>
+                            ${targetQs.map(t => `<option value="${t.questionId}" ${r.targetQuestionId === t.questionId ? 'selected' : ''}>${t.orderIndex}. ${t.title}</option>`).join('')}
+                        </select>
+                        <button onclick="removeRule('${r.ruleId}')" class="text-red-400 hover:text-red-600 px-1">×</button>
+                    </div>
+                `).join('');
 
                 qDiv.innerHTML = `
-                    <div class="flex justify-between">
-                        <span class="text-gray-400 font-mono">#${index + 1} [${q.type}]</span>
-                        <button onclick="removeQuestion('${q.questionId}')" class="text-red-400 hover:text-red-600">删除</button>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-gray-400 font-mono text-sm">#${index + 1} [${q.type}]</span>
+                        <div class="flex items-center space-x-4">
+                            <label class="flex items-center text-sm font-medium text-gray-700">
+                                <input type="checkbox" ${q.isRequired ? 'checked' : ''} onchange="updateQ('${q.questionId}', 'isRequired', this.checked)" class="mr-2"> 必答
+                            </label>
+                            <button onclick="removeQuestion('${q.questionId}')" class="text-red-400 hover:text-red-600 text-sm">删除题目</button>
+                        </div>
                     </div>
-                    <input type="text" value="${q.title || ''}" onchange="updateQ('${q.questionId}', 'title', this.value)" placeholder="请输入题目标题" class="text-lg font-bold w-full border-b focus:border-blue-500 outline-none py-1 mt-2">
+                    <input type="text" value="${q.title || ''}" onchange="updateQ('${q.questionId}', 'title', this.value)" placeholder="请输入题目标题" class="text-lg font-bold w-full border-b focus:border-blue-500 outline-none py-1 mb-2">
                     
                     ${typeSpecHtml}
 
-                    <div class="mt-4 p-3 bg-blue-50 rounded-lg">
-                        <h5 class="text-xs font-bold text-blue-800 mb-2">跳转逻辑</h5>
-                        <div class="flex items-center space-x-2 text-sm">
-                            <span>若回答为</span>
-                            <input type="text" value="${existingRule?.triggerCondition || ''}" onchange="updateRule('${q.questionId}', 'triggerCondition', this.value)" placeholder="值" class="border rounded p-1 w-20">
-                            <span>则跳转至</span>
-                            <select onchange="updateRule('${q.questionId}', 'targetQuestionId', this.value)" class="border rounded p-1 flex-1">
-                                <option value="">下一题 (默认)</option>
-                                ${targetOptions}
-                            </select>
+                    <div class="mt-6 p-4 bg-blue-50 rounded-xl">
+                        <div class="flex justify-between items-center mb-3">
+                            <h5 class="text-xs font-bold text-blue-800 uppercase tracking-wider">跳转逻辑设置</h5>
+                            <button onclick="addRule('${q.questionId}')" class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">+ 添加规则</button>
+                        </div>
+                        <div id="rules_container_${q.questionId}">
+                            ${rulesHtml || '<p class="text-xs text-blue-300 italic">尚未配置跳转规则</p>'}
                         </div>
                     </div>
                 `;
@@ -162,39 +166,42 @@
         function updateQ(id, field, value) {
             const q = questions.find(q => q.questionId === id);
             if (q) q[field] = value;
-            renderRulesSummary();
+            if (field === 'title' || field === 'isRequired') renderRulesSummary();
         }
 
-        function updateRule(sourceId, field, value) {
-            let rule = logicRules.find(r => r.sourceQuestionId === sourceId);
-            if (!value && field === 'targetQuestionId') {
-                logicRules = logicRules.filter(r => r.sourceQuestionId !== sourceId);
-            } else {
-                if (!rule) {
-                    rule = { ruleId: 'r_' + Math.random().toString(36).substr(2, 9), sourceQuestionId: sourceId, triggerCondition: '', targetQuestionId: '' };
-                    logicRules.push(rule);
-                }
-                rule[field] = value;
-            }
+        function addRule(qId) {
+            const ruleId = 'r_' + Math.random().toString(36).substr(2, 9);
+            logicRules.push({ ruleId, sourceQuestionId: qId, triggerCondition: '', targetQuestionId: '' });
+            renderEditor();
+        }
+
+        function removeRule(ruleId) {
+            logicRules = logicRules.filter(r => r.ruleId !== ruleId);
+            renderEditor();
+        }
+
+        function updateRuleAttr(ruleId, attr, value) {
+            const rule = logicRules.find(r => r.ruleId === ruleId);
+            if (rule) rule[attr] = value;
             renderRulesSummary();
         }
 
         function renderRulesSummary() {
             const list = document.getElementById('rulesList');
             list.innerHTML = logicRules.map(r => {
-                const source = questions.find(q => q.questionId === r.sourceQuestionId);
+                const src = questions.find(q => q.questionId === r.sourceQuestionId);
                 const target = questions.find(q => q.questionId === r.targetQuestionId);
-                return `<div class="p-2 bg-gray-50 rounded border">如果 <b>${source?.orderIndex || '?'}</b> 等于 "${r.triggerCondition}", 跳至 <b>${target?.orderIndex || '?'}</b></div>`;
-            }).join('') || '<p class="text-gray-400">暂无规则</p>';
+                if (!src || !target) return '';
+                return `<div class="p-2 bg-gray-50 rounded border border-gray-100 text-xs"><b>Q${src.orderIndex}</b> 等于 "${r.triggerCondition}" → <b>Q${target.orderIndex}</b></div>`;
+            }).filter(h => h).join('') || '<p class="text-gray-400 italic">暂无生效规则</p>';
         }
 
         async function saveSchema() {
-            // Re-assign order indices based on current array order
             questions.forEach((q, i) => q.orderIndex = i + 1);
-
+            
             const payload = {
                 questions: questions,
-                logic_rules: logicRules
+                logic_rules: logicRules.filter(r => r.triggerCondition && r.targetQuestionId)
             };
 
             const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/schema`, {
@@ -203,10 +210,11 @@
             });
 
             if (response.ok) {
-                alert('保存成功！');
+                alert('保存成功！跳转逻辑已校验并更新。');
+                loadSchema(); // Reload to refresh everything
             } else {
                 const err = await response.json();
-                alert('保存失败: ' + JSON.stringify(err.detail));
+                alert('保存失败: ' + (err.detail?.message || JSON.stringify(err.detail)));
             }
         }
 
