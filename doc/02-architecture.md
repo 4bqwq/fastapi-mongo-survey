@@ -39,7 +39,7 @@ flowchart TD
 | 模块名称 | 职责边界与核心行为 |
 | :--- | :--- |
 | **身份认证模块** | 承担用户注册鉴权、会话生命周期管理，确立租户/用户数据隔离屏障 |
-| **问卷配置模块** | 维护问卷元数据（标题、状态、截止时间、匿名标识），控制问卷启停状态 |
+| **问卷配置模块** | 维护问卷元数据（标题、状态、截止时间、是否允许匿名填写），控制问卷启停状态 |
 | **题目与逻辑模块** | 管理多态题型（单选、多选、文本、数字）组件及其校验规则，装配动态跳转引擎配置 |
 | **填写校验模块** | 承接 C 端流量，执行输入边界断言、路径推演与答卷数据持久化，拦截非法提交 |
 | **数据统计模块** | 执行宏观问卷回收率统计与微观题目聚合分析（选项频次计数、有效均值计算） |
@@ -117,7 +117,7 @@ classDiagram
     class Survey {
         +String survey_id
         +String title
-        +Boolean is_anonymous
+        +Boolean allow_anonymous
         +DateTime end_time
         +String status
         +publish()
@@ -162,6 +162,7 @@ classDiagram
         +String answer_id
         +String survey_id
         +String respondent_id
+        +Boolean is_anonymous_submission
         +Map~question_id, response~ payloads
         +DateTime submitted_at
     }

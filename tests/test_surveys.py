@@ -32,7 +32,11 @@ async def test_survey_crud_and_isolation():
         
         # 2. User A creates a survey
         headers_a = {"Authorization": f"Bearer {token_a}"}
-        create_resp = await ac.post("/api/v1/surveys", json={"title": "Survey A", "is_anonymous": False}, headers=headers_a)
+        create_resp = await ac.post(
+            "/api/v1/surveys",
+            json={"title": "Survey A", "is_anonymous": False, "end_time": "2030-01-01T00:00:00Z"},
+            headers=headers_a,
+        )
         assert create_resp.status_code == 200
         survey_id = create_resp.json()["data"]["survey_id"]
         
@@ -55,3 +59,15 @@ async def test_survey_crud_and_isolation():
         list_a = await ac.get("/api/v1/surveys", headers=headers_a)
         assert len(list_a.json()["data"]) == 1
         assert list_a.json()["data"][0]["title"] == "Survey A"
+        assert list_a.json()["data"][0]["end_time"] is not None
+
+        # 7. User A updates survey metadata
+        metadata_resp = await ac.patch(
+            f"/api/v1/surveys/{survey_id}",
+            json={"title": "Survey A v2", "is_anonymous": True, "end_time": None},
+            headers=headers_a,
+        )
+        assert metadata_resp.status_code == 200
+        assert metadata_resp.json()["data"]["title"] == "Survey A v2"
+        assert metadata_resp.json()["data"]["is_anonymous"] is True
+        assert metadata_resp.json()["data"]["end_time"] is None

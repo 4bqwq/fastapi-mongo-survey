@@ -19,6 +19,13 @@
             <div id="questionsContainer" class="space-y-6">
                 <!-- Questions -->
             </div>
+            <div id="anonymousOption" class="hidden bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4">
+                <label class="flex items-center font-medium">
+                    <input id="submitAsAnonymous" type="checkbox" class="mr-2">
+                    匿名提交本次答卷
+                </label>
+                <p class="text-sm mt-2">勾选后，发布者无法在结果中看到你的身份信息。</p>
+            </div>
             
             <div class="pt-6 border-t flex justify-center">
                 <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-10 py-3 rounded-full font-bold shadow-lg transition">
@@ -45,6 +52,7 @@
                 surveySchema = result.data;
                 document.getElementById('surveyTitle').textContent = surveySchema.title;
                 document.getElementById('surveyDesc').textContent = surveySchema.description;
+                document.getElementById('anonymousOption').classList.toggle('hidden', !surveySchema.is_anonymous);
                 renderQuestions();
                 evaluateLogic(); 
             } else {
@@ -81,7 +89,7 @@
 
                 qDiv.innerHTML = `
                     <div class="mb-4">
-                        <span class="text-blue-600 font-bold mr-2">${q.orderIndex}.</span>
+                        <span class="text-blue-600 font-bold mr-2">第${q.orderIndex}题</span>
                         <span class="font-semibold text-gray-800">${q.title}</span>
                         ${q.isRequired ? '<span class="text-red-500 ml-1">*</span>' : ''}
                     </div>
@@ -167,7 +175,10 @@
 
             const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/answers`, {
                 method: 'POST',
-                body: JSON.stringify({ payloads: visiblePayloads })
+                body: JSON.stringify({
+                    submit_as_anonymous: surveySchema.is_anonymous && document.getElementById('submitAsAnonymous').checked,
+                    payloads: visiblePayloads
+                })
             });
 
             const result = await response.json();

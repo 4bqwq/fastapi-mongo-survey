@@ -4,7 +4,10 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.models.user import PyObjectId
 
 class AnswerCreate(BaseModel):
+    submit_as_anonymous: bool = Field(default=False, alias="submit_as_anonymous")
     payloads: Dict[str, Any] # questionId -> answer
+
+    model_config = ConfigDict(populate_by_name=True)
 
 class AnswerInDB(BaseModel):
     id: Optional[PyObjectId] = Field(default=None, alias="_id")

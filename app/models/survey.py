@@ -1,11 +1,12 @@
 from datetime import datetime
-from typing import Optional, List, Any, Union
+from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict
 from app.models.user import PyObjectId
 
 class QuestionModel(BaseModel):
     question_id: str = Field(alias="questionId")
     type: str # ChoiceQuestion, TextQuestion, NumberQuestion
+    title: str
     is_required: bool = Field(default=True, alias="isRequired")
     order_index: int = Field(alias="orderIndex")
     
@@ -45,6 +46,14 @@ class SurveyBase(BaseModel):
 
 class SurveyCreate(SurveyBase):
     pass
+
+class SurveyMetadataUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    is_anonymous: Optional[bool] = Field(default=None, alias="is_anonymous")
+    end_time: Optional[datetime] = Field(default=None, alias="end_time")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 class SurveyUpdateStatus(BaseModel):
     status: str # DRAFT, PUBLISHED, CLOSED

@@ -3,6 +3,7 @@ from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.core.database import connect_to_mongo, close_mongo_connection, get_database
 from bson import ObjectId
+from datetime import datetime, timedelta
 
 @pytest.fixture(scope="module")
 def anyio_backend():
@@ -33,8 +34,8 @@ async def test_filling_validation():
         # Add questions: q1(Required), q2(Number 1-10)
         schema = {
             "questions": [
-                {"questionId": "q1", "type": "TextQuestion", "orderIndex": 1, "isRequired": True, "title": "Req Q"},
-                {"questionId": "q2", "type": "NumberQuestion", "orderIndex": 2, "isRequired": False, "minValue": 1, "maxValue": 10, "title": "Num Q"}
+                {"questionId": "q1", "type": "TextQuestion", "orderIndex": 1, "isRequired": True, "title": "Req Q", "minLength": 2, "maxLength": 5},
+                {"questionId": "q2", "type": "NumberQuestion", "orderIndex": 2, "isRequired": False, "minValue": 1, "maxValue": 10, "mustBeInteger": True, "title": "Num Q"}
             ],
             "logic_rules": []
         }
@@ -46,19 +47,69 @@ async def test_filling_validation():
         # 2. Submit with missing required question
         resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q2": 5}}, headers=headers)
         assert resp.status_code == 422
+        assert "第1题" in resp.json()["detail"]["message"]
         assert "必答题" in resp.json()["detail"]["message"]
 
-        # 3. Submit with number out of range
+        # 3. Submit with text too short
+        resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q1": "a", "q2": 5}}, headers=headers)
+        assert resp.status_code == 422
+        assert "第1题" in resp.json()["detail"]["message"]
+        assert "至少需要输入 2 个字" in resp.json()["detail"]["message"]
+
+        # 4. Submit with decimal for integer-only number
+        resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q1": "hello", "q2": 1.5}}, headers=headers)
+        assert resp.status_code == 422
+        assert "第2题" in resp.json()["detail"]["message"]
+        assert "整数" in resp.json()["detail"]["message"]
+
+        # 5. Submit with number out of range
         resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q1": "hello", "q2": 15}}, headers=headers)
         assert resp.status_code == 422
-        assert "值过大" in resp.json()["detail"]["message"]
+        assert "第2题" in resp.json()["detail"]["message"]
+        assert "不能大于 10" in resp.json()["detail"]["message"]
 
-        # 4. Successful submission
+        # 6. Successful real-name submission
         resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q1": "hello", "q2": 5}}, headers=headers)
         assert resp.status_code == 200
         assert "answer_id" in resp.json()["data"]
-        
-        # 5. Submit to closed survey
+
+        db = get_database()
+        saved_answer = await db.answers.find_one({"_id": ObjectId(resp.json()["data"]["answer_id"])})
+        assert saved_answer["respondentId"] != "-1"
+        assert saved_answer["isAnonymousSubmission"] is False
+
+        # 7. Enable anonymous option and submit anonymously
+        patch_resp = await ac.patch(
+            f"/api/v1/surveys/{survey_id}",
+            json={"is_anonymous": True},
+            headers=headers,
+        )
+        assert patch_resp.status_code == 200
+
+        resp = await ac.post(
+            f"/api/v1/surveys/{survey_id}/answers",
+            json={"submit_as_anonymous": True, "payloads": {"q1": "hello", "q2": 6}},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        anonymous_answer = await db.answers.find_one({"_id": ObjectId(resp.json()["data"]["answer_id"])})
+        assert anonymous_answer["respondentId"] == "-1"
+        assert anonymous_answer["isAnonymousSubmission"] is True
+
+        # 8. Set survey expired and reject submission
+        expired_time = (datetime.utcnow() - timedelta(minutes=5)).isoformat() + "Z"
+        patch_resp = await ac.patch(
+            f"/api/v1/surveys/{survey_id}",
+            json={"end_time": expired_time},
+            headers=headers,
+        )
+        assert patch_resp.status_code == 200
+
+        resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q1": "hello", "q2": 5}}, headers=headers)
+        assert resp.status_code == 403
+        assert "已截止" in resp.json()["detail"]["message"]
+
+        # 9. Submit to closed survey
         await ac.patch(f"/api/v1/surveys/{survey_id}/status", json={"status": "CLOSED"}, headers=headers)
         resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {"q1": "hello"}}, headers=headers)
         assert resp.status_code == 403

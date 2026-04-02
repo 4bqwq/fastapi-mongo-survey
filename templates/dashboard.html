@@ -44,7 +44,11 @@
                 </div>
                 <div class="mb-6 flex items-center">
                     <input id="surveyAnon" type="checkbox" class="mr-2">
-                    <label class="text-gray-700 text-sm font-bold">匿名作答</label>
+                    <label class="text-gray-700 text-sm font-bold">允许匿名提交</label>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">截止时间</label>
+                    <input id="surveyEndTime" type="datetime-local" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="flex justify-end space-x-3">
                     <button type="button" onclick="toggleModal(false)" class="text-gray-500 hover:underline">取消</button>
@@ -98,6 +102,10 @@
                         <span class="text-xs font-semibold px-2 py-1 rounded bg-gray-100 ${statusColor}">${survey.status}</span>
                     </div>
                     <p class="text-gray-500 text-sm mb-4 line-clamp-2 h-10">${survey.description || '无描述'}</p>
+                    <div class="text-xs text-gray-500 space-y-1 mb-4">
+                        <div>匿名提交: ${survey.is_anonymous ? '可选' : '关闭'}</div>
+                        <div>截止时间: ${survey.end_time ? new Date(survey.end_time).toLocaleString('zh-CN') : '未设置'}</div>
+                    </div>
                     <div class="flex items-center space-x-2 mb-4">
                         ${shareBtns}
                     </div>
@@ -139,7 +147,8 @@
             const payload = {
                 title: document.getElementById('surveyTitle').value,
                 description: document.getElementById('surveyDesc').value,
-                is_anonymous: document.getElementById('surveyAnon').checked
+                is_anonymous: document.getElementById('surveyAnon').checked,
+                end_time: document.getElementById('surveyEndTime').value ? new Date(document.getElementById('surveyEndTime').value).toISOString() : null
             };
 
             const response = await authenticatedFetch('/api/v1/surveys', {

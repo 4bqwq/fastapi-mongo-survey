@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from typing import List, Dict
-from app.models.survey import SurveyCreate, SurveyUpdateStatus, SurveyInDB, SurveyOut, SurveySchemaUpdate
+from app.models.survey import SurveyCreate, SurveyUpdateStatus, SurveySchemaUpdate, SurveyMetadataUpdate
 from app.models.user import UserInDB
 from app.api.deps import get_current_user
 from app.core.database import get_database
@@ -8,6 +7,12 @@ from datetime import datetime
 from bson import ObjectId
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
+
+def serialize_dt(value):
+    return value.isoformat() + "Z" if value else None
+
+def get_question_label(question: dict) -> str:
+    return f"第{question['orderIndex']}题"
 
 @router.post("", response_model=dict)
 async def create_survey(
@@ -47,9 +52,9 @@ async def list_surveys(
             "title": s["title"],
             "description": s.get("description", ""),
             "status": s["status"],
-            "is_anonymous": s["is_anonymous"],
-            "end_time": s.get("end_time").isoformat() + "Z" if s.get("end_time") else None,
-            "created_at": s["createdAt"].isoformat() + "Z"
+            "is_anonymous": s.get("is_anonymous", False),
+            "end_time": serialize_dt(s.get("end_time")),
+            "created_at": serialize_dt(s["createdAt"])
         })
     
     return {
@@ -78,10 +83,48 @@ async def get_survey_schema(
         "data": {
             "title": survey["title"],
             "description": survey.get("description", ""),
-            "is_anonymous": survey["is_anonymous"],
+            "is_anonymous": survey.get("is_anonymous", False),
             "status": survey["status"],
+            "end_time": serialize_dt(survey.get("end_time")),
             "questions": survey.get("questions", []),
             "logic_rules": survey.get("logicRules", [])
+        }
+    }
+
+@router.patch("/{survey_id}", response_model=dict)
+async def update_survey_metadata(
+    survey_id: str,
+    metadata_in: SurveyMetadataUpdate,
+    current_user: UserInDB = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    survey = await db.surveys.find_one({"_id": ObjectId(survey_id)})
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+
+    if survey["userId"] != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": 40301, "message": "无权操作此问卷"}
+        )
+
+    update_fields = metadata_in.model_dump(by_alias=True, exclude_unset=True)
+    update_fields["updatedAt"] = datetime.utcnow()
+
+    await db.surveys.update_one(
+        {"_id": ObjectId(survey_id)},
+        {"$set": update_fields}
+    )
+
+    updated = await db.surveys.find_one({"_id": ObjectId(survey_id)})
+    return {
+        "code": 200,
+        "data": {
+            "survey_id": survey_id,
+            "title": updated["title"],
+            "description": updated.get("description", ""),
+            "is_anonymous": updated.get("is_anonymous", False),
+            "end_time": serialize_dt(updated.get("end_time"))
         }
     }
 
@@ -142,6 +185,32 @@ async def update_survey_schema(
     q_map = {q["questionId"]: q for q in questions_dict_list}
     seen_conditions = {} # source_id -> set of conditions
 
+    for question in questions_dict_list:
+        q_label = get_question_label(question)
+        if question["type"] == "ChoiceQuestion":
+            min_select = question.get("minSelect")
+            max_select = question.get("maxSelect")
+            if min_select is not None and min_select < 1:
+                raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的最少选择数不能小于 1"})
+            if max_select is not None and max_select < 1:
+                raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的最多选择数不能小于 1"})
+            if min_select is not None and max_select is not None and max_select < min_select:
+                raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的最大选择数不能小于最小选择数"})
+        elif question["type"] == "TextQuestion":
+            min_length = question.get("minLength")
+            max_length = question.get("maxLength")
+            if min_length is not None and min_length < 0:
+                raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的最少字数不能小于 0"})
+            if max_length is not None and max_length < 0:
+                raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的最多字数不能小于 0"})
+            if min_length is not None and max_length is not None and max_length < min_length:
+                raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的最多字数不能小于最少字数"})
+        elif question["type"] == "NumberQuestion":
+            min_value = question.get("minValue")
+            max_value = question.get("maxValue")
+            if min_value is not None and max_value is not None and max_value < min_value:
+                raise HTTPException(422, detail={"code": 42201, "message": f"{q_label} 的最大值不能小于最小值"})
+
     for rule in rules_dict_list:
         src_id = rule["sourceQuestionId"]
         target_id = rule["targetQuestionId"]
@@ -152,15 +221,16 @@ async def update_survey_schema(
         
         src_q = q_map[src_id]
         target_q = q_map[target_id]
+        src_label = get_question_label(src_q)
         
         if target_q["orderIndex"] <= src_q["orderIndex"]:
-            raise HTTPException(422, detail={"code": 42201, "message": f"规则 {rule.get('ruleId')} 跳转目标必须在源题目之后"})
+            raise HTTPException(422, detail={"code": 42201, "message": f"{src_label} 的跳转目标必须在当前题目之后"})
         
         if src_id not in seen_conditions:
             seen_conditions[src_id] = set()
         
         if cond in seen_conditions[src_id]:
-            raise HTTPException(422, detail={"code": 42201, "message": f"题目 {src_id} 存在重复的跳转条件: {cond}"})
+            raise HTTPException(422, detail={"code": 42201, "message": f"{src_label} 存在重复的跳转条件: {cond}"})
         
         seen_conditions[src_id].add(cond)
 

@@ -35,6 +35,7 @@ async def test_update_schema_polymorphism():
                 {
                     "questionId": "q1",
                     "type": "ChoiceQuestion",
+                    "title": "第1题",
                     "orderIndex": 1,
                     "options": ["A", "B"],
                     "maxSelect": 2
@@ -42,14 +43,18 @@ async def test_update_schema_polymorphism():
                 {
                     "questionId": "q2",
                     "type": "NumberQuestion",
+                    "title": "第2题",
                     "orderIndex": 2,
                     "minValue": 10.5,
-                    "maxValue": 100.0
+                    "maxValue": 100.0,
+                    "mustBeInteger": True
                 },
                 {
                     "questionId": "q3",
                     "type": "TextQuestion",
+                    "title": "第3题",
                     "orderIndex": 3,
+                    "minLength": 5,
                     "maxLength": 500
                 }
             ],
@@ -77,8 +82,11 @@ async def test_update_schema_polymorphism():
         
         q2 = next(q for q in survey["questions"] if q["questionId"] == "q2")
         assert q2["minValue"] == 10.5
+        assert q2["mustBeInteger"] is True
         
         q3 = next(q for q in survey["questions"] if q["questionId"] == "q3")
+        assert q3["title"] == "第3题"
+        assert q3["minLength"] == 5
         assert q3["maxLength"] == 500
         
         assert len(survey["logicRules"]) == 1

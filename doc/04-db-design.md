@@ -31,12 +31,13 @@
 | `userId`                      | ObjectId     | 是       | 无         | 创建者(发布者)引用。需创建复合索引：`{ userId: 1, createdAt: -1 }` (加速B端列表查询) |
 | `title`                       | String       | 是       | 无         | 问卷标题                                                     |
 | `description`                 | String       | 否       | ""         | 问卷描述文本                                                 |
-| `isAnonymous`                 | Boolean      | 是       | false      | 是否开启匿名作答                                             |
+| `isAnonymous`                 | Boolean      | 是       | false      | 是否允许填写者在提交时选择匿名作答                           |
 | `status`                      | String       | 是       | "DRAFT"    | 枚举状态 (DRAFT, PUBLISHED, CLOSED)。需创建单键索引：`{ status: 1 }` |
 | `endTime`                     | Date         | 否       | null       | 问卷截止时间。可配合业务做 TTL 或查询过滤                    |
 | `questions`                   | Array        | 是       | []         | 内嵌数组，存储所有多态题目对象                               |
 | ├── `questionId`              | String       | 是       | 无         | 题目业务标识                                                 |
 | ├── `type`                    | String       | 是       | 无         | 题型枚举 (ChoiceQuestion, TextQuestion, NumberQuestion)      |
+| ├── `title`                   | String       | 是       | 无         | 题目标题                                                     |
 | ├── `isRequired`              | Boolean      | 是       | true       | 必答校验标识                                                 |
 | ├── `orderIndex`              | Int32        | 是       | 无         | 题目流转顺序号                                               |
 | ├── `options`                 | Array        | 否       | []         | 单/多选题选项集，元素为 String                               |
@@ -67,7 +68,8 @@
 | -------------- | ------------ | -------- | ---------- | ------------------------------------------------------------ |
 | `_id`          | ObjectId     | 是       | 自动生成   | 主键，唯一答卷标识                                           |
 | `surveyId`     | ObjectId     | 是       | 无         | 目标问卷引用。需创建复合索引：`{ surveyId: 1, submittedAt: -1 }` (加速按问卷检索与统计下钻) |
-| `respondentId` | Mixed        | 是       | 无         | 填卷人标识。若为实名问卷，存储 User ObjectId；若为匿名问卷，统一记录为 `-1`。需创建复合索引：`{ surveyId: 1, respondentId: 1 }` |
+| `respondentId` | Mixed        | 是       | 无         | 填卷人标识。若本次提交选择实名，存储 User ObjectId；若本次提交选择匿名，统一记录为 `-1`。需创建复合索引：`{ surveyId: 1, respondentId: 1 }` |
+| `isAnonymousSubmission` | Boolean | 是 | false | 本次答卷是否按匿名方式提交                                     |
 
 | `payloads`     | Object       | 是       | {}         | 动态键值对容器。键为 `questionId`，值为单态数据(String/Double)或多态数据(Array) |
 | ├── `[q_xxx]`  | Mixed        | 否       | 无         | 动态题目键。例如：`"q_001": ["满意"]`, `"q_002": 85`。无需建立全字段索引，统计时依赖聚合管道 |

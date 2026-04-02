@@ -119,7 +119,7 @@ JSON
 
 - `title` (String, 必填): 问卷标题。
 - `description` (String, 非必填): 问卷说明。
-- `is_anonymous` (Boolean, 必填): 是否匿名填写。
+- `is_anonymous` (Boolean, 必填): 是否允许填写者在提交时选择匿名。
 - `end_time` (DateTime, 非必填): 截止时间。
 
 **返回结果**：
@@ -134,6 +134,48 @@ JSON
     "data": {
       "survey_id": "sv_8a9b2c",
       "status": "DRAFT"
+    }
+  }
+  ```
+
+#### 接口名称：更新问卷基础信息
+
+**请求方式与路径**：`PATCH /api/v1/surveys/{survey_id}`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>` (需为该问卷创建者)
+
+**请求参数**：
+
+JSON
+
+```
+{
+  "title": "2026年度产品满意度调查（第二版）",
+  "description": "请在截止前完成填写",
+  "is_anonymous": true,
+  "end_time": "2026-05-15T23:59:59Z"
+}
+```
+
+- `title` (String, 非必填): 问卷标题。
+- `description` (String, 非必填): 问卷说明。
+- `is_anonymous` (Boolean, 非必填): 是否允许填写者匿名提交。
+- `end_time` (DateTime, 可空): 截止时间；传 `null` 表示清空。
+
+**返回结果**：
+
+- **成功 (200 OK)**:
+
+  JSON
+
+  ```
+  {
+    "code": 200,
+    "data": {
+      "survey_id": "sv_8a9b2c",
+      "title": "2026年度产品满意度调查（第二版）",
+      "is_anonymous": true,
+      "end_time": "2026-05-15T23:59:59Z"
     }
   }
   ```
@@ -211,6 +253,7 @@ JSON
     {
       "question_id": "q_001",
       "type": "ChoiceQuestion",
+      "title": "第1题标题",
       "is_required": true,
       "order_index": 1,
       "options": ["满意", "一般", "不满意"],
@@ -220,6 +263,7 @@ JSON
     {
       "question_id": "q_002",
       "type": "NumberQuestion",
+      "title": "第2题标题",
       "is_required": false,
       "order_index": 2,
       "min_value": 1,
@@ -258,9 +302,13 @@ JSON
   ```
   {
     "code": 42201,
-    "message": "参数校验失败: q_001 的最大选择数不能小于最小选择数"
+    "message": "参数校验失败: 第1题的最大选择数不能小于最小选择数"
   }
   ```
+
+**错误提示约束**：
+
+- 所有题目相关报错必须使用“第N题”顺序编号，不得暴露内部 `question_id`。
 
 ------
 
@@ -292,6 +340,7 @@ JSON
         {
           "question_id": "q_001",
           "type": "ChoiceQuestion",
+          "title": "第1题标题",
           "is_required": true,
           "order_index": 1,
           "options": ["满意", "一般", "不满意"],
@@ -318,6 +367,33 @@ JSON
 #### 接口名称：提交问卷答卷
 
 **请求方式与路径**：`POST /api/v1/surveys/{survey_id}/answers`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>` (填写者必须登录)
+
+**请求参数**：
+
+JSON
+
+```
+{
+  "submit_as_anonymous": true,
+  "payloads": {
+    "q_001": ["满意"],
+    "q_002": 88,
+    "q_003": "体验很好"
+  }
+}
+```
+
+- `submit_as_anonymous` (Boolean, 非必填): 是否以匿名方式提交。仅当问卷允许匿名时可传 `true`。
+- `payloads` (Object, 必填): 作答内容。
+
+**服务端校验要求**：
+
+- 问卷未发布、已关闭或已超过截止时间时必须拒绝提交。
+- 文本题需校验最少字数、最多字数。
+- 数字题需校验最小值、最大值与整数约束。
+- 所有错误提示必须使用“第N题”格式。
 
 **请求头/鉴权**：`Authorization: Bearer <Token>` (强制要求登录)
 

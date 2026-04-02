@@ -20,6 +20,25 @@
 
     <div class="container mx-auto p-6 flex flex-col md:flex-row gap-6">
         <div class="flex-1 space-y-4">
+            <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-gray-400 uppercase">问卷标题</label>
+                    <input id="metaTitle" type="text" class="w-full border rounded p-2 mt-1">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-400 uppercase">问卷说明</label>
+                    <textarea id="metaDescription" class="w-full border rounded p-2 mt-1" rows="3"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label class="flex items-center text-sm font-medium text-gray-700 mt-6">
+                        <input id="metaAnonymous" type="checkbox" class="mr-2"> 允许填写者匿名提交
+                    </label>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase">截止时间</label>
+                        <input id="metaEndTime" type="datetime-local" class="w-full border rounded p-2 mt-1">
+                    </div>
+                </div>
+            </div>
             <div id="questionsContainer" class="space-y-4">
                 <!-- Questions -->
             </div>
@@ -51,12 +70,30 @@
         const surveyId = "{{ survey_id }}";
         let questions = [];
         let logicRules = [];
+        let surveyMeta = {};
+
+        function toDatetimeLocal(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        }
 
         async function loadSchema() {
             const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/schema`);
             const result = await response.json();
             if (response.ok) {
-                document.getElementById('surveyTitle').textContent = result.data.title;
+                surveyMeta = {
+                    title: result.data.title || '',
+                    description: result.data.description || '',
+                    is_anonymous: !!result.data.is_anonymous,
+                    end_time: result.data.end_time || null
+                };
+                document.getElementById('surveyTitle').textContent = surveyMeta.title || '未命名问卷';
+                document.getElementById('metaTitle').value = surveyMeta.title;
+                document.getElementById('metaDescription').value = surveyMeta.description;
+                document.getElementById('metaAnonymous').checked = surveyMeta.is_anonymous;
+                document.getElementById('metaEndTime').value = toDatetimeLocal(surveyMeta.end_time);
                 questions = result.data.questions || [];
                 logicRules = result.data.logic_rules || [];
                 renderEditor();
@@ -102,6 +139,29 @@
                             <label class="text-xs font-bold text-gray-400 uppercase">选项集 (每行一个)</label>
                             <textarea onchange="updateQ('${q.questionId}', 'options', this.value.split('\\n'))" class="w-full border rounded p-2 mt-1 font-sans text-sm">${(q.options || []).join('\n')}</textarea>
                         </div>
+                        <div class="grid grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="text-xs">最少选择数</label>
+                                <input type="number" min="1" value="${q.minSelect ?? ''}" onchange="updateQ('${q.questionId}', 'minSelect', this.value === '' ? null : parseInt(this.value, 10))" class="w-full border rounded p-1">
+                            </div>
+                            <div>
+                                <label class="text-xs">最多选择数</label>
+                                <input type="number" min="1" value="${q.maxSelect ?? ''}" onchange="updateQ('${q.questionId}', 'maxSelect', this.value === '' ? null : parseInt(this.value, 10))" class="w-full border rounded p-1">
+                            </div>
+                        </div>
+                    `;
+                } else if (q.type === 'TextQuestion') {
+                    typeSpecHtml = `
+                        <div class="grid grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="text-xs">最少字数</label>
+                                <input type="number" min="0" value="${q.minLength ?? ''}" onchange="updateQ('${q.questionId}', 'minLength', this.value === '' ? null : parseInt(this.value, 10))" class="w-full border rounded p-1">
+                            </div>
+                            <div>
+                                <label class="text-xs">最多字数</label>
+                                <input type="number" min="0" value="${q.maxLength ?? ''}" onchange="updateQ('${q.questionId}', 'maxLength', this.value === '' ? null : parseInt(this.value, 10))" class="w-full border rounded p-1">
+                            </div>
+                        </div>
                     `;
                 } else if (q.type === 'NumberQuestion') {
                     typeSpecHtml = `
@@ -115,6 +175,9 @@
                                 <input type="number" value="${q.maxValue || ''}" onchange="updateQ('${q.questionId}', 'maxValue', this.value === '' ? null : parseFloat(this.value))" class="w-full border rounded p-1">
                             </div>
                         </div>
+                        <label class="flex items-center text-sm text-gray-700 mt-4">
+                            <input type="checkbox" ${q.mustBeInteger ? 'checked' : ''} onchange="updateQ('${q.questionId}', 'mustBeInteger', this.checked)" class="mr-2"> 仅允许整数
+                        </label>
                     `;
                 }
 
@@ -136,7 +199,7 @@
 
                 qDiv.innerHTML = `
                     <div class="flex justify-between items-center mb-4">
-                        <span class="text-gray-400 font-mono text-sm">#${index + 1} [${q.type}]</span>
+                        <span class="text-gray-400 text-sm">第${index + 1}题 [${q.type}]</span>
                         <div class="flex items-center space-x-4">
                             <label class="flex items-center text-sm font-medium text-gray-700">
                                 <input type="checkbox" ${q.isRequired ? 'checked' : ''} onchange="updateQ('${q.questionId}', 'isRequired', this.checked)" class="mr-2"> 必答
@@ -192,12 +255,30 @@
                 const src = questions.find(q => q.questionId === r.sourceQuestionId);
                 const target = questions.find(q => q.questionId === r.targetQuestionId);
                 if (!src || !target) return '';
-                return `<div class="p-2 bg-gray-50 rounded border border-gray-100 text-xs"><b>Q${src.orderIndex}</b> 等于 "${r.triggerCondition}" → <b>Q${target.orderIndex}</b></div>`;
+                return `<div class="p-2 bg-gray-50 rounded border border-gray-100 text-xs"><b>第${src.orderIndex}题</b> 等于 "${r.triggerCondition}" → <b>第${target.orderIndex}题</b></div>`;
             }).filter(h => h).join('') || '<p class="text-gray-400 italic">暂无生效规则</p>';
         }
 
         async function saveSchema() {
             questions.forEach((q, i) => q.orderIndex = i + 1);
+
+            const metadataPayload = {
+                title: document.getElementById('metaTitle').value.trim(),
+                description: document.getElementById('metaDescription').value,
+                is_anonymous: document.getElementById('metaAnonymous').checked,
+                end_time: document.getElementById('metaEndTime').value ? new Date(document.getElementById('metaEndTime').value).toISOString() : null
+            };
+
+            const metadataResp = await authenticatedFetch(`/api/v1/surveys/${surveyId}`, {
+                method: 'PATCH',
+                body: JSON.stringify(metadataPayload)
+            });
+
+            if (!metadataResp.ok) {
+                const err = await metadataResp.json();
+                alert('保存失败: ' + (err.detail?.message || JSON.stringify(err.detail)));
+                return;
+            }
             
             const payload = {
                 questions: questions,
