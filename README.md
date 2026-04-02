@@ -55,6 +55,7 @@
 │   ├── 05-test-cases.md
 │   ├── 06-deployment.md
 │   ├── 07-frontend-spec.md
+│   ├── AI_Chat_Log.md
 │   └── ADR
 ├── docker-compose.yml
 ├── pyproject.toml
@@ -211,4 +212,34 @@ uv run pytest
 uv run pytest tests/test_stats.py
 ```
 
+## 文档位置说明
+
+作业要求的项目文档，这些文档都可以在 `doc/` 目录下找到。各文件的内容如下：
+
+- `doc/01-prd.md`
+  需求说明文档。主要描述系统目标、用户角色、核心流程和具体功能要求。
+
+- `doc/02-architecture.md`
+  架构设计文档。主要说明系统模块划分、领域模型、数据流和当前实现所对应的整体结构。
+
+- `doc/03-api-spec.md`
+  API 说明文档。主要记录当前实际实现中的接口路径、请求参数、返回结构和主要校验规则。
+
+- `doc/04-db-design.md`
+  数据库设计文档。主要说明 MongoDB 中各集合的用途、字段结构，以及当前实现中的实际落库字段。
+
+- `doc/05-test-cases.md`
+  测试用例文档。主要整理创建问卷、添加题目、跳转逻辑、校验、提交、统计、边界值和压力风格测试场景。
+
+- `doc/06-deployment.md`
+  部署文档。主要说明如何配置环境变量、启动 MongoDB、安装依赖和运行后端服务。
+
+- `doc/07-frontend-spec.md`
+  前端功能规范文档。主要说明各页面应具备的交互和展示要求。
+
+- `doc/AI_Chat_Log.md`
+  完成作业时与AI的对话历史记录，包括提问（Prompt）和回复。
+
+- `doc/ADR/`
+  架构决策记录目录。后续如果有重要设计变更或关键取舍，可以继续把决策记录放在这个目录下。
 

@@ -42,7 +42,7 @@ flowchart TD
 | **问卷配置模块** | 维护问卷元数据（标题、状态、截止时间、是否允许匿名填写），控制问卷启停状态 |
 | **题目与逻辑模块** | 管理多态题型（单选、多选、文本、数字）组件及其校验规则，装配动态跳转引擎配置 |
 | **填写校验模块** | 承接 C 端流量，执行输入边界断言、路径推演与答卷数据持久化，拦截非法提交 |
-| **数据统计模块** | 执行宏观问卷回收率统计与微观题目聚合分析（选项频次计数、有效均值计算） |
+| **数据统计模块** | 执行宏观问卷回收率统计与微观题目聚合分析（选项频次计数、数字均值计算、文本与数字明细汇总） |
 
 ### 三、 技术选型与依据
 
@@ -58,18 +58,15 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Internet((公网流量)) --> LB[Nginx 负载均衡器 / 静态网关]
-    
-    subgraph 无状态应用集群区
-        LB --> Node1[App Node 1: FastAPI]
-        LB --> Node2[App Node 2: FastAPI]
-    end
-    
-    subgraph 隔离数据存储区
-        Node1 --> MongoPrimary[(MongoDB Primary)]
-        Node2 --> MongoPrimary
-    end
+    Browser[浏览器] --> App[FastAPI 应用]
+    App --> Mongo[(MongoDB)]
 ```
+
+当前实现说明：
+
+- 仓库当前提供的是单个 FastAPI 应用实例加单个 MongoDB 实例的开发部署形态。
+- MongoDB 通常通过 Docker Compose 启动，FastAPI 通过 `uv run uvicorn app.main:app --reload` 启动。
+- 文档中的架构描述以当前实际交付形态为准，不描述尚未在仓库中落地的 Nginx 或多节点集群。
 
 ### 五、 核心数据流向
 
@@ -83,7 +80,7 @@ sequenceDiagram
     participant DB as MongoDB 集群
 
     User->>UI: 访问专属链接 (/survey/uuid)
-    UI->>API: GET /api/surveys/{uuid}/schema
+    UI->>API: GET /api/v1/surveys/{uuid}/schema
     API->>DB: 聚合查询问卷元数据、题目集与跳转规则
     DB-->>API: 返回 JSON Document
     API-->>UI: 下发完整问卷 Schema 与 RuleSet
@@ -96,7 +93,7 @@ sequenceDiagram
     end
     
     User->>UI: 触发问卷提交
-    UI->>API: POST /api/surveys/{uuid}/answers
+    UI->>API: POST /api/v1/surveys/{uuid}/answers
     API->>API: 执行服务端防篡改二次强校验
     API->>DB: 答卷文档落库 (Answers Collection)
     DB-->>API: 确认持久化
@@ -117,7 +114,7 @@ classDiagram
     class Survey {
         +String survey_id
         +String title
-        +Boolean allow_anonymous
+        +Boolean is_anonymous
         +DateTime end_time
         +String status
         +publish()
@@ -221,3 +218,8 @@ def compute_next_question(current_q: Question, payload: Any, rules: List[LogicRu
 
 补充约束：
 对于单选题与多选题，`LogicRule.trigger_condition` 存储的是按空格分隔的选项行号组合。规则求值前必须先将用户当前答案转换为同样的标准化行号字符串，再执行全量相等比较，而不是基于单个选项做包含判断。
+
+当前实现补充：
+
+- `GET /api/v1/surveys/{survey_id}/schema` 当前实现不强制鉴权，也不会因为问卷关闭或逾期而拒绝返回 schema。
+- 统计模块对文本题最多返回 20 条明细，对数字题最多返回 50 条明细，用于前端展示。
