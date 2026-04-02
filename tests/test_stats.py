@@ -63,3 +63,4 @@ async def test_statistics_aggregation():
         q2_stats = data["micro_stats"]["q2"]
         assert q2_stats["average_value"] == 55.0
         assert q2_stats["valid_answers"] == 10
+        assert q2_stats["text_list"] == ["10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]

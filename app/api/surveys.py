@@ -340,12 +340,24 @@ async def get_survey_statistics(
             
             avg_val = results[0]["average"] if results else 0
             count = results[0]["count"] if results else 0
+
+            detail_cursor = db.answers.find(
+                {"surveyId": ObjectId(survey_id), f"payloads.{q_id}": {"$ne": None}},
+                {f"payloads.{q_id}": 1}
+            ).limit(50)
+            detail_results = await detail_cursor.to_list(length=50)
+            text_list = [
+                str(r["payloads"][q_id])
+                for r in detail_results
+                if q_id in r.get("payloads", {})
+            ]
             
             micro_stats[q_id] = {
                 "type": q_type,
                 "title": q.get("title", ""),
                 "valid_answers": count,
-                "average_value": round(float(avg_val), 2)
+                "average_value": round(float(avg_val), 2),
+                "text_list": text_list
             }
             
         elif q_type == "TextQuestion":

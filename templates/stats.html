@@ -61,10 +61,17 @@
                     
                     renderChart(canvasId, data.distribution);
                 } else if (data.type === 'NumberQuestion') {
+                    const listHtml = (data.text_list || []).map(t => `<li class="p-2 border-b text-sm text-gray-600">${t}</li>`).join('') || '<li class="text-gray-400 italic">暂无回答</li>';
                     contentHtml += `
-                        <div class="flex-1 flex flex-col justify-center items-center py-10">
-                            <span class="text-5xl font-bold text-green-500">${data.average_value}</span>
-                            <span class="text-gray-400 mt-2 text-sm">算术平均值 (${data.valid_answers} 份有效回答)</span>
+                        <div class="space-y-6">
+                            <div class="flex flex-col justify-center items-center py-6">
+                                <span class="text-5xl font-bold text-green-500">${data.average_value}</span>
+                                <span class="text-gray-400 mt-2 text-sm">算术平均值 (${data.valid_answers} 份有效回答)</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-700 mb-2">回答明细</p>
+                                <ul class="max-h-64 overflow-y-auto bg-gray-50 rounded p-2">${listHtml}</ul>
+                            </div>
                         </div>
                     `;
                     card.innerHTML = contentHtml;
