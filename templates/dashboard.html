@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问卷看板 - 问卷系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/js/auth.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-md p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-blue-600">问卷管理系统</h1>
+        <div class="flex items-center space-x-4">
+            <span id="usernameDisplay" class="text-gray-600"></span>
+            <button onclick="logout()" class="text-red-500 hover:underline">退出登录</button>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-semibold text-gray-800">我的问卷</h2>
+            <button onclick="toggleModal(true)" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm transition">
+                + 创建新问卷
+            </button>
+        </div>
+
+        <div id="surveyList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Surveys will be loaded here -->
+        </div>
+    </main>
+
+    <!-- Create Survey Modal -->
+    <div id="createModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-xl font-bold mb-4">创建新问卷</h3>
+            <form id="createSurveyForm">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">标题</label>
+                    <input id="surveyTitle" type="text" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">说明</label>
+                    <textarea id="surveyDesc" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div class="mb-6 flex items-center">
+                    <input id="surveyAnon" type="checkbox" class="mr-2">
+                    <label class="text-gray-700 text-sm font-bold">匿名作答</label>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="toggleModal(false)" class="text-gray-500 hover:underline">取消</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">确认创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        if (!isLoggedIn()) {
+            window.location.href = '/login';
+        }
+
+        function logout() {
+            removeToken();
+            window.location.href = '/login';
+        }
+
+        function toggleModal(show) {
+            document.getElementById('createModal').classList.toggle('hidden', !show);
+        }
+
+        async function fetchSurveys() {
+            const response = await authenticatedFetch('/api/v1/surveys');
+            const result = await response.json();
+            if (response.ok) {
+                renderSurveys(result.data);
+            }
+        }
+
+        function renderSurveys(surveys) {
+            const listEl = document.getElementById('surveyList');
+            listEl.innerHTML = surveys.length === 0 ? '<p class="text-gray-500 col-span-full text-center py-10">暂无问卷，点击右上角创建</p>' : '';
+            
+            surveys.forEach(survey => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-5 rounded-xl shadow-sm border hover:shadow-md transition';
+                
+                const statusColor = survey.status === 'PUBLISHED' ? 'text-green-600' : (survey.status === 'CLOSED' ? 'text-red-600' : 'text-yellow-600');
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h4 class="text-lg font-bold text-gray-800 truncate" title="${survey.title}">${survey.title}</h4>
+                        <span class="text-xs font-semibold px-2 py-1 rounded bg-gray-100 ${statusColor}">${survey.status}</span>
+                    </div>
+                    <p class="text-gray-500 text-sm mb-4 line-clamp-2 h-10">${survey.description || '无描述'}</p>
+                    <div class="flex flex-wrap gap-2 mt-auto">
+                        <button onclick="toggleStatus('${survey.survey_id}', '${survey.status}')" class="text-sm px-3 py-1 border rounded hover:bg-gray-50">
+                            ${survey.status === 'PUBLISHED' ? '关闭' : '发布'}
+                        </button>
+                        <button onclick="window.location.href='/editor/${survey.survey_id}'" class="text-sm px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100">编辑</button>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        async function toggleStatus(id, currentStatus) {
+            const newStatus = currentStatus === 'PUBLISHED' ? 'CLOSED' : 'PUBLISHED';
+            const response = await authenticatedFetch(`/api/v1/surveys/${id}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (response.ok) {
+                fetchSurveys();
+            }
+        }
+
+        document.getElementById('createSurveyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                title: document.getElementById('surveyTitle').value,
+                description: document.getElementById('surveyDesc').value,
+                is_anonymous: document.getElementById('surveyAnon').checked
+            };
+
+            const response = await authenticatedFetch('/api/v1/surveys', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                toggleModal(false);
+                document.getElementById('createSurveyForm').reset();
+                fetchSurveys();
+            }
+        });
+
+        fetchSurveys();
+    </script>
+</body>
+</html>

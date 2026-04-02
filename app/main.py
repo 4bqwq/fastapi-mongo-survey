@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from contextlib import asynccontextmanager
 from app.core.database import connect_to_mongo, close_mongo_connection
 from app.api.auth import router as auth_router
+from app.api.surveys import router as survey_router
 import os
 
 @asynccontextmanager
@@ -25,6 +26,7 @@ templates = Jinja2Templates(directory="templates")
 
 # Include Routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(survey_router, prefix="/api/v1")
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -40,8 +42,7 @@ async def register_page(request: Request):
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
-    # Dashboard placeholder
-    return HTMLResponse("<h1>Dashboard (Coming Soon)</h1><button onclick='localStorage.removeItem(\"survey_token\"); window.location.href=\"/login\"'>Logout</button>")
+    return templates.TemplateResponse(request=request, name="dashboard.html")
 
 @app.get("/health")
 async def health():

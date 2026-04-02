@@ -17,3 +17,7 @@ dependencies = [
     "python-multipart>=0.0.22",
     "uvicorn>=0.42.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
