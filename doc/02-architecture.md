@@ -5,7 +5,7 @@
 | 维度 | 架构级定义 |
 | :--- | :--- |
 | **系统定位** | 轻量级、高扩展性的在线问卷构建、分发与数据收集分析平台 |
-| **核心业务目标** | 提供动态多态问卷配置、灵活逻辑跳转流转及实时结构化数据统计能力 |
+| **核心业务目标** | 提供题目版本化管理、问卷快照固化、动态逻辑跳转与实时结构化数据统计能力 |
 | **受众隔离** | 问卷发布者（B端视角/管理域）、问卷填写者（C端视角/收集域） |
 | **关键非功能需求** | 支撑中低频并发访问，单节点满足 500+ QPS；保证数据强隔离与输入校验可靠性 |
 | **演进约束** | 架构极简，规避过度设计，但必须预留题型扩展接口与存储水平扩展空间 |
@@ -18,12 +18,15 @@ flowchart TD
     
     Gateway --> AuthCenter[身份认证模块]
     Gateway --> SurveyBiz[问卷业务服务]
+    Gateway --> QuestionBiz[题库与版本服务]
     Gateway --> StatBiz[数据统计服务]
 
     subgraph 核心业务逻辑层
         AuthCenter
         SurveyBiz --> Config[问卷配置模块]
-        SurveyBiz --> Editor[题目与逻辑流转模块]
+        SurveyBiz --> Editor[问卷快照与逻辑流转模块]
+        QuestionBiz --> Bank[题库管理模块]
+        QuestionBiz --> Versioning[题目版本链模块]
         SurveyBiz --> Fill[问卷填写与校验模块]
         StatBiz --> Agg[聚合计算模块]
     end
@@ -31,6 +34,8 @@ flowchart TD
     subgraph 数据持久化层
         Config --> Mongo[(MongoDB)]
         Editor --> Mongo
+        Bank --> Mongo
+        Versioning --> Mongo
         Fill --> Mongo
         Agg --> Mongo
     end
@@ -40,9 +45,10 @@ flowchart TD
 | :--- | :--- |
 | **身份认证模块** | 承担用户注册鉴权、会话生命周期管理，确立租户/用户数据隔离屏障 |
 | **问卷配置模块** | 维护问卷元数据（标题、状态、截止时间、是否允许匿名填写），控制问卷启停状态 |
-| **题目与逻辑模块** | 管理多态题型（单选、多选、文本、数字）组件及其校验规则，装配动态跳转引擎配置 |
+| **题库与版本模块** | 管理独立题目定义、题目版本链、版本递增与版本详情查询 |
+| **问卷快照与逻辑模块** | 按问卷维度选择具体题目版本，固化快照并装配动态跳转规则 |
 | **填写校验模块** | 承接 C 端流量，执行输入边界断言、路径推演与答卷数据持久化，拦截非法提交 |
-| **数据统计模块** | 执行宏观问卷回收率统计与微观题目聚合分析（选项频次计数、数字均值计算、文本与数字明细汇总） |
+| **数据统计模块** | 基于问卷快照执行宏观回收率统计与微观题目聚合分析，避免题库后续变更污染历史统计 |
 
 ### 三、 技术选型与依据
 
@@ -51,7 +57,7 @@ flowchart TD
 | **开发语言** | Python 3.11+ | 语法极简，开发敏捷，完美匹配微型项目规模与数据聚合计算场景 |
 | **依赖与环境管理** | uv | Rust 构建的下一代 Python 工具，极大提升依赖解析与虚拟环境构建速度 |
 | **Web 应用框架** | FastAPI | 原生异步支持，内置 Pydantic 数据验证引擎，极其契合问卷多变、嵌套的数据结构校验 |
-| **主数据库** | MongoDB | 文档型 NoSQL。Schema-free 特性天然兼容多态题型文档与动态问卷结构，支持问卷-题目聚簇存储结构，减少联表开销 |
+| **主数据库** | MongoDB | 文档型 NoSQL。既适合存放 `questions` 版本文档，也适合在 `surveys` 中保存问卷题目快照 |
 | **缓存与状态** | 进程内内存缓存 | 基于极小规模约束，暂缓引入独立 Redis 组件，以降低系统运维复杂度，代码层预留 Cache 接口规范 |
 
 ### 四、 部署架构与拓扑
@@ -81,14 +87,14 @@ sequenceDiagram
 
     User->>UI: 访问专属链接 (/survey/uuid)
     UI->>API: GET /api/v1/surveys/{uuid}/schema
-    API->>DB: 聚合查询问卷元数据、题目集与跳转规则
+    API->>DB: 读取问卷元数据、题目快照与跳转规则
     DB-->>API: 返回 JSON Document
-    API-->>UI: 下发完整问卷 Schema 与 RuleSet
+    API-->>UI: 下发完整问卷快照 Schema 与 RuleSet
     
     loop 逐题动态推演
         User->>UI: 输入/选择答题数据
         UI->>UI: 触发本地断言（必答/极值/字数边界）
-        UI->>UI: 运行规则引擎匹配条件，推演下一题游标
+        UI->>UI: 基于快照题目与规则引擎推演下一题游标
         UI->>User: 动态呈现目标题目（隐蔽中间跳过节点）
     end
     
@@ -105,14 +111,14 @@ sequenceDiagram
 ```mermaid
 classDiagram
     class User {
-        +String user_id
+        +String userId
         +String username
-        +String password_hash
-        +DateTime created_at
+        +String passwordHash
+        +DateTime createdAt
     }
 
     class Survey {
-        +String survey_id
+        +String surveyId
         +String title
         +Boolean is_anonymous
         +DateTime end_time
@@ -121,56 +127,66 @@ classDiagram
         +close()
     }
 
-    class Question {
+    class QuestionVersion {
         <<Abstract>>
-        +String question_id
+        +String questionId
+        +Int version
+        +String previousVersionId
         +String type
-        +Boolean is_required
-        +Int order_index
+        +Boolean isRequired
         +validate(input_data)
+    }
+
+    class SurveyQuestionSnapshot {
+        +String questionId
+        +Int version
+        +String versionId
+        +Int orderIndex
+        +Object snapshot
     }
 
     class ChoiceQuestion {
         +List~String~ options
-        +Int min_select
-        +Int max_select
+        +Int minSelect
+        +Int maxSelect
     }
 
     class TextQuestion {
-        +Int min_length
-        +Int max_length
+        +Int minLength
+        +Int maxLength
     }
 
     class NumberQuestion {
-        +Float min_value
-        +Float max_value
-        +Boolean must_be_integer
+        +Float minValue
+        +Float maxValue
+        +Boolean mustBeInteger
     }
 
     class LogicRule {
-        +String rule_id
-        +String source_question_id
-        +String target_question_id
-        +String trigger_condition
+        +String ruleId
+        +String sourceQuestionId
+        +String targetQuestionId
+        +String triggerCondition
         +evaluate(current_answer) Boolean
     }
 
     class AnswerSheet {
-        +String answer_id
-        +String survey_id
-        +String respondent_id
-        +Boolean is_anonymous_submission
-        +Map~question_id, response~ payloads
-        +DateTime submitted_at
+        +String answerId
+        +String surveyId
+        +String respondentId
+        +Boolean isAnonymousSubmission
+        +Map~questionId, response~ payloads
+        +DateTime submittedAt
     }
 
     User "1" --> "0..*" Survey : owns
-    Survey "1" *-- "1..*" Question : aggregates
+    Survey "1" *-- "1..*" SurveyQuestionSnapshot : contains
     Survey "1" *-- "0..*" LogicRule : routes_by
     Survey "1" <-- "0..*" AnswerSheet : generates
-    Question <|-- ChoiceQuestion
-    Question <|-- TextQuestion
-    Question <|-- NumberQuestion
+    QuestionVersion <|-- ChoiceQuestion
+    QuestionVersion <|-- TextQuestion
+    QuestionVersion <|-- NumberQuestion
+    SurveyQuestionSnapshot --> QuestionVersion : snapshots
 ```
 
 ### 七、 关键算法与业务状态流转
@@ -205,15 +221,15 @@ flowchart TD
 **伪代码实现参考：**
 
 ```python
-def compute_next_question(current_q: Question, payload: Any, rules: List[LogicRule]) -> Question:
-    """计算问卷流转的下一游标"""
+def compute_next_question(current_q: SurveyQuestionSnapshot, payload: Any, rules: List[LogicRule]) -> SurveyQuestionSnapshot:
+    """基于问卷快照计算流转的下一游标"""
     current_q.validate(payload)
     
     for rule in rules:
-        if rule.source_question_id == current_q.id and rule.evaluate(payload):
-            return survey.get_question_by_id(rule.target_question_id)
+        if rule.sourceQuestionId == current_q.id and rule.evaluate(payload):
+            return survey.get_snapshot_by_question_id(rule.targetQuestionId)
             
-    return survey.get_question_by_order(current_q.order_index + 1)
+    return survey.get_snapshot_by_order(current_q.orderIndex + 1)
 ```
 
 补充约束：
@@ -221,5 +237,6 @@ def compute_next_question(current_q: Question, payload: Any, rules: List[LogicRu
 
 当前实现补充：
 
-- `GET /api/v1/surveys/{survey_id}/schema` 当前实现不强制鉴权，也不会因为问卷关闭或逾期而拒绝返回 schema。
+- `GET /api/v1/surveys/{survey_id}/schema` 当前实现返回的是问卷快照而不是题库实时版本。
+- 当前实现新增 `questions` 集合，用于题目独立存储与版本链维护。
 - 统计模块对文本题最多返回 20 条明细，对数字题最多返回 50 条明细，用于前端展示。

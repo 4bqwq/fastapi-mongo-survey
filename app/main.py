@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from contextlib import asynccontextmanager
 from app.core.database import connect_to_mongo, close_mongo_connection
 from app.api.auth import router as auth_router
+from app.api.questions import router as question_router
 from app.api.surveys import router as survey_router
 from app.api.answers import router as answer_router
 import os
@@ -27,6 +28,7 @@ templates = Jinja2Templates(directory="templates")
 
 # Include Routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(question_router, prefix="/api/v1")
 app.include_router(survey_router, prefix="/api/v1")
 app.include_router(answer_router, prefix="/api/v1")
 

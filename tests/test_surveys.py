@@ -14,6 +14,7 @@ async def manage_db():
     db = get_database()
     # Clean up
     await db.users.delete_many({"username": {"$regex": "^test_.*"}})
+    await db.questions.delete_many({})
     await db.surveys.delete_many({})
     yield
     await close_mongo_connection()

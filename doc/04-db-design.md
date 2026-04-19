@@ -1,102 +1,136 @@
-### 集合：`users` (用户信息表)
+### 集合：`users`（用户信息表）
 
-**业务用途**：管理问卷发布者与填写者的账户凭证、身份认证与基础信息。
+**业务用途**：管理问卷发布者与填写者的账号、鉴权与数据隔离。
 
-**分片与架构**：归属身份认证模块。当前应用代码未自动配置分片；若后续需要扩展用户规模，可考虑使用 `{ _id: "hashed" }` 作为分片键。
-
-**模型设计策略**：扁平化设计，无需复杂嵌套或引用，保证高频查询登录鉴权的极速响应。
-
-| **字段名**     | **BSON类型** | **必填** | **默认值** | **说明 (含嵌套结构、引用说明、索引建议)**              |
-| -------------- | ------------ | -------- | ---------- | ------------------------------------------------------ |
-| `_id`          | ObjectId     | 是       | 自动生成   | 主键，唯一标识                                         |
-| `username`     | String       | 是       | 无         | 用户名。建议创建唯一单键索引：`{ username: 1 }` |
-| `passwordHash` | String       | 是       | 无         | 加密后的密码哈希值                                     |
-| `createdAt`    | Date         | 是       | 当前时间   | 记录创建时间                                           |
-| `updatedAt`    | Date         | 是       | 当前时间   | 记录更新时间                                           |
-| `isDeleted`    | Boolean      | 否       | false      | 软删除标识                                             |
+| 字段名 | BSON类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `_id` | ObjectId | 是 | 自动生成 | 主键 |
+| `username` | String | 是 | 无 | 用户名，建议唯一索引 `{ username: 1 }` |
+| `passwordHash` | String | 是 | 无 | 密码哈希 |
+| `createdAt` | Date | 是 | 当前时间 | 创建时间 |
+| `updatedAt` | Date | 是 | 当前时间 | 更新时间 |
+| `isDeleted` | Boolean | 否 | false | 软删除标识 |
 
 ------
 
-### 集合：`surveys` (问卷配置与架构表)
+### 集合：`questions`（题库版本表）
 
-**业务用途**：统一存储问卷元数据、多态题型定义集及全局逻辑跳转规则。
+**业务用途**：独立存储题目定义，支撑题目复用、版本隔离、版本历史与多版本共存。
 
-**分片与架构**：归属问卷配置 / 题目与逻辑模块。当前应用代码未自动配置分片；若后续需要横向扩展，可考虑使用 `{ _id: "hashed" }` 作为分片键。
+**模型设计策略**：采用“稳定业务主键 + 版本文档”设计。`questionId` 表示逻辑题目身份，单条文档表示该题的一个具体版本。问卷不直接引用“最新题目”，而是引用某个确定版本并在问卷中保存快照。
 
-**模型设计策略**：采用**内嵌模式 (Embedding)**。基于数据具有强生命周期绑定（题目与规则随问卷生灭）且前端依赖“一次性全量拉取 (Schema)”的读多写少特征，打破范式消除联表。
+| 字段名 | BSON类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `_id` | ObjectId | 是 | 自动生成 | 当前版本文档主键，也可视为 `versionId` |
+| `questionId` | String | 是 | 无 | 稳定题目标识，同一题目的所有版本共享 |
+| `userId` | ObjectId | 是 | 无 | 题目所有者；Stage 1 不支持分享 |
+| `version` | Int32 | 是 | 无 | 从 1 开始递增 |
+| `previousVersionId` | ObjectId/null | 否 | null | 指向上一版本，形成 `v1 -> v2 -> v3` 链 |
+| `versionChainRootId` | ObjectId | 是 | 无 | 指向首版本 `_id`，方便按整条版本链查询 |
+| `type` | String | 是 | 无 | `ChoiceQuestion` / `TextQuestion` / `NumberQuestion` |
+| `title` | String | 是 | 无 | 题目标题 |
+| `isRequired` | Boolean | 是 | true | 必答标识 |
+| `options` | Array | 否 | [] | 选择题选项列表 |
+| `minSelect` / `maxSelect` | Int32 | 否 | null | 选择题数量限制 |
+| `minLength` / `maxLength` | Int32 | 否 | null | 文本题长度限制 |
+| `minValue` / `maxValue` | Double | 否 | null | 数字题范围限制 |
+| `mustBeInteger` | Boolean | 否 | false | 数字题整数约束 |
+| `createdAt` | Date | 是 | 当前时间 | 该版本创建时间 |
+| `updatedAt` | Date | 是 | 当前时间 | 该版本更新时间 |
 
-| **字段名**                    | **BSON类型** | **必填** | **默认值** | **说明 (含嵌套结构、引用说明、索引建议)**                    |
-| ----------------------------- | ------------ | -------- | ---------- | ------------------------------------------------------------ |
-| `_id`                         | ObjectId     | 是       | 自动生成   | 主键，全局唯一问卷ID                                         |
-| `userId`                      | ObjectId     | 是       | 无         | 创建者(发布者)引用。建议创建复合索引：`{ userId: 1, createdAt: -1 }` (加速 B 端列表查询) |
-| `title`                       | String       | 是       | 无         | 问卷标题                                                     |
-| `description`                 | String       | 否       | ""         | 问卷描述文本                                                 |
-| `is_anonymous`               | Boolean      | 是       | false      | 是否允许填写者在提交时选择匿名作答                           |
-| `status`                      | String       | 是       | "DRAFT"    | 枚举状态 (DRAFT, PUBLISHED, CLOSED)。建议创建单键索引：`{ status: 1 }` |
-| `end_time`                   | Date         | 否       | null       | 问卷截止时间。当前代码通过业务逻辑检查截止，不使用 TTL      |
-| `questions`                   | Array        | 是       | []         | 内嵌数组，存储所有多态题目对象                               |
-| ├── `questionId`              | String       | 是       | 无         | 题目业务标识                                                 |
-| ├── `type`                    | String       | 是       | 无         | 题型枚举 (ChoiceQuestion, TextQuestion, NumberQuestion)      |
-| ├── `title`                   | String       | 是       | 无         | 题目标题                                                     |
-| ├── `isRequired`              | Boolean      | 是       | true       | 必答校验标识                                                 |
-| ├── `orderIndex`              | Int32        | 是       | 无         | 题目流转顺序号                                               |
-| ├── `options`                 | Array        | 否       | []         | 单/多选题选项集，元素为 String                               |
-| ├── `minSelect` / `maxSelect` | Int32        | 否       | null       | 多选题选择数量上下限                                         |
-| ├── `minLength` / `maxLength` | Int32        | 否       | null       | 文本题字符长度上下限                                         |
-| ├── `minValue` / `maxValue`   | Double       | 否       | null       | 数字题极值上下限                                             |
-| ├── `mustBeInteger`           | Boolean      | 否       | false      | 数字题整数强制约束                                           |
-| `logicRules`                  | Array        | 是       | []         | 内嵌数组，存储跳转规则对象。支持针对同题目配置多个不同条件的跳转目标。 |
-| ├── `ruleId`                  | String       | 是       | 无         | 规则业务标识                                                 |
-| ├── `sourceQuestionId`        | String       | 是       | 无         | 触发条件的源题号                                             |
-| ├── `targetQuestionId`        | String       | 是       | 无         | 命中后跳转的目标题号。必须大于源题号的 orderIndex。           |
-| ├── `triggerCondition`        | String       | 是       | 无         | 触发值表达式或具体匹配值。同题目下触发条件不可重复；若源题为单/多选题，则存储标准化后的选项行号组合，如 `1`、`1 3` |
-| `createdAt`                   | Date         | 是       | 当前时间   | 创建时间                                                     |
-| `updatedAt`                   | Date         | 是       | 当前时间   | 更新时间                                                     |
+**索引建议**：
+
+- `{ userId: 1, questionId: 1 }`
+- `{ questionId: 1, version: 1 }` 唯一索引
+- `{ versionChainRootId: 1, version: 1 }`
 
 ------
 
-### 集合：`answers` (答卷明细表)
+### 集合：`surveys`（问卷配置与快照表）
 
-**业务用途**：承接 C 端流量，高频落库填写者的单次完整作答数据，并支撑后续结构化聚合分析。
+**业务用途**：存储问卷元数据、问卷使用的题目版本引用，以及保存时固化的题目快照和跳转规则。
 
-**分片与架构**：归属填写校验 / 数据统计模块。当前应用代码未自动配置分片；若后续需要防止热门问卷写入热点，可考虑使用 `{ surveyId: "hashed" }` 作为分片键。
+**模型设计策略**：采用“引用 + 快照”的混合设计。问卷中的每一道题都绑定某个题目版本，但同时内嵌快照内容，确保后续题库继续升级时，旧问卷内容保持稳定。
 
-**模型设计策略**：采用**引用模式 (Referencing)** 指向问卷模型，采用**动态键/属性模式 (Attribute Pattern)** 设计作答负载(`payloads`)，适应异构题目结果的存储与单题高并发聚合 (`$group`) 分析。
+| 字段名 | BSON类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `_id` | ObjectId | 是 | 自动生成 | 问卷主键 |
+| `userId` | ObjectId | 是 | 无 | 创建者，建议索引 `{ userId: 1, createdAt: -1 }` |
+| `title` | String | 是 | 无 | 问卷标题 |
+| `description` | String | 否 | "" | 问卷说明 |
+| `is_anonymous` | Boolean | 是 | false | 是否允许匿名提交 |
+| `status` | String | 是 | `DRAFT` | `DRAFT` / `PUBLISHED` / `CLOSED` |
+| `end_time` | Date/null | 否 | null | 截止时间 |
+| `questions` | Array | 是 | [] | 问卷题目快照数组 |
+| ├── `questionId` | String | 是 | 无 | 稳定题目标识 |
+| ├── `version` | Int32 | 是 | 无 | 问卷绑定的题目版本号 |
+| ├── `versionId` | ObjectId | 是 | 无 | 该快照来源的题目版本文档 `_id` |
+| ├── `orderIndex` | Int32 | 是 | 无 | 题目在当前问卷中的顺序 |
+| ├── `snapshot` | Object | 是 | 无 | 当前问卷固化的题目内容 |
+| │   ├── `type` | String | 是 | 无 | 快照题型 |
+| │   ├── `title` | String | 是 | 无 | 快照标题 |
+| │   ├── `isRequired` | Boolean | 是 | true | 快照必答标识 |
+| │   ├── `options` | Array | 否 | [] | 选择题选项 |
+| │   ├── `minSelect` / `maxSelect` | Int32 | 否 | null | 选择数量限制 |
+| │   ├── `minLength` / `maxLength` | Int32 | 否 | null | 文本长度限制 |
+| │   ├── `minValue` / `maxValue` | Double | 否 | null | 数字范围限制 |
+| │   ├── `mustBeInteger` | Boolean | 否 | false | 数字整数约束 |
+| `logicRules` | Array | 是 | [] | 问卷跳转规则 |
+| ├── `ruleId` | String | 是 | 无 | 规则业务标识 |
+| ├── `sourceQuestionId` | String | 是 | 无 | 源题 questionId |
+| ├── `targetQuestionId` | String | 是 | 无 | 目标题 questionId |
+| ├── `triggerCondition` | String | 是 | 无 | 标准化触发条件 |
+| `createdAt` | Date | 是 | 当前时间 | 创建时间 |
+| `updatedAt` | Date | 是 | 当前时间 | 更新时间 |
 
-| **字段名**     | **BSON类型** | **必填** | **默认值** | **说明 (含嵌套结构、引用说明、索引建议)**                    |
-| -------------- | ------------ | -------- | ---------- | ------------------------------------------------------------ |
-| `_id`          | ObjectId     | 是       | 自动生成   | 主键，唯一答卷标识                                           |
-| `surveyId`     | ObjectId     | 是       | 无         | 目标问卷引用。建议创建复合索引：`{ surveyId: 1, submittedAt: -1 }` (加速按问卷检索与统计下钻) |
-| `respondentId` | Mixed        | 是       | 无         | 填卷人标识。若本次提交选择实名，存储 User ObjectId；若本次提交选择匿名，统一记录为 `-1`。建议创建复合索引：`{ surveyId: 1, respondentId: 1 }` |
-| `isAnonymousSubmission` | Boolean | 是 | false | 本次答卷是否按匿名方式提交                                     |
-| `payloads`     | Object       | 是       | {}         | 动态键值对容器。键为 `questionId`，值为单态数据(String/Double)或多态数据(Array) |
-| ├── `[q_xxx]`  | Mixed        | 否       | 无         | 动态题目键。例如：`"q_001": ["满意"]`, `"q_002": 85`。无需建立全字段索引，统计时依赖聚合管道 |
-| `submittedAt`  | Date         | 是       | 无         | 用户真实提交时间戳                                           |
-| `createdAt`    | Date         | 是       | 当前时间   | 文档落库时间                                                 |
-| `updatedAt`    | Date         | 是       | 当前时间   | 文档修改时间                                                 |
+**关键约束**：
+
+- `surveys.questions.snapshot` 是后续填写、渲染、统计的唯一真值来源。
+- 修改题库中的题目版本不会自动修改任何已存在问卷的快照。
+- 问卷可以同时引用同一 `questionId` 的不同版本，只要 `questionId + version` 组合明确且顺序合法。
 
 ------
 
-### 四、 MongoDB 设计决策说明
+### 集合：`answers`（答卷明细表）
 
-根据大作业的要求，针对本系统的 MongoDB 选型与设计逻辑说明如下：
+**业务用途**：记录填写者提交的问卷答案，并基于问卷快照进行统计。
 
-**1. 为什么采用 MongoDB 而非关系数据库？**
-问卷系统的核心痛点在于“题目多态性”与“结构频繁变更”。在关系型数据库中，存储不同约束的题目（如多选、填空、数字等）往往需要复杂的关联表或 EAV 模型，这会导致大量的 JOIN 操作且难以进行高效的业务校验。MongoDB 的文档模型允许我们在一个 `surveys` 文档中内嵌所有题目定义，且在 `answers` 中以动态键存储异构回答，极大地降低了数据查询与维护的复杂度。
+| 字段名 | BSON类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `_id` | ObjectId | 是 | 自动生成 | 主键 |
+| `surveyId` | ObjectId | 是 | 无 | 问卷引用，建议索引 `{ surveyId: 1, submittedAt: -1 }` |
+| `respondentId` | Mixed | 是 | 无 | 实名时为用户 ObjectId，匿名时为 `-1` |
+| `isAnonymousSubmission` | Boolean | 是 | false | 是否匿名提交 |
+| `payloads` | Object | 是 | {} | 键为 `questionId`，值为答案 |
+| `submittedAt` | Date | 是 | 当前时间 | 真实提交时间 |
+| `createdAt` | Date | 是 | 当前时间 | 创建时间 |
+| `updatedAt` | Date | 是 | 当前时间 | 更新时间 |
 
-**2. 为什么这样设计模型结构？**
-系统采用了**聚簇内嵌 (Embedding)** 与**灵活引用 (Referencing)** 的混合策略：
-- **问卷与题目 (内嵌)**：题目逻辑上严格从属于问卷，生命周期一致。内嵌设计确保了获取问卷 Schema 时仅需一次磁盘 IO，且保证了题目顺序与逻辑跳转规则的强一致性。
-- **答卷与问卷 (引用)**：答卷数据量随业务运行线性增长。通过 `surveyId` 进行引用，并针对该字段建立哈希分片，能有效分散高并发写入压力，防止单节点过热。
+**说明**：
 
-**3. 为什么该设计适合 MongoDB？**
-- **Schema-free 特性**：随着系统进入第二阶段，需求变更（如新增题目类型或统计维度）仅需在后端逻辑层调整，无需执行昂贵的数据库 `ALTER TABLE` 操作。
-- **高性能聚合**：MongoDB 的聚合框架 ($group, $avg) 能在不破坏文档结构的前提下，快速完成单/多选题的频次统计及数字填空的算术平均值计算。
-- **横向扩展潜力**：通过预设的分片键设计，系统天然具备支撑大规模用户调研的底层架构能力。
+- `payloads` 继续使用 `questionId` 作为键，因为问卷快照内部的 `questionId` 在单份问卷内保持稳定。
+- 统计时必须结合问卷快照解释答案，而不能回查题库最新版本。
 
-### 五、 当前实现补充说明
+------
 
-- 当前仓库中的 Python 代码不会在启动时自动创建索引。
-- 当前仓库中的 Python 代码不会在启动时自动执行 MongoDB 分片配置。
-- 文档里提到的索引和分片键，只是建议当前数据模型采用的数据库组织方式，并不代表应用启动后会自动执行这些配置。
-- 当前问卷集合实际使用的字段名为 `is_anonymous` 和 `end_time`，与 API 入参与代码读取逻辑保持一致。
+### 四、MongoDB 设计决策说明
+
+**1. 为什么从内嵌题目改成独立存储？**
+
+第一阶段的“题目内嵌在问卷中”设计适合快速交付，但无法满足题目复用、版本链、修改历史和多版本共存。只要题目需要跨问卷复用，就必须把“题目定义”从“问卷实例”中抽离出来。
+
+**2. 为什么仍然保留问卷内的快照？**
+
+如果问卷只保存题目引用，不保存快照，那么题库中题目一旦升级，已发布问卷和旧答卷的语义就会漂移。Stage 1 的核心要求恰恰是版本隔离，因此问卷必须同时保存“引用哪个版本”和“当时的快照内容”。
+
+**3. 为什么这个设计适合 MongoDB？**
+
+- `questions` 集合适合存放版本化文档，每个版本天然就是一条独立文档。
+- `surveys.questions` 中的 `snapshot` 适合使用 MongoDB 的内嵌文档表达，不需要联表即可完成填写和统计。
+- “题库存版本、问卷存快照、答卷存动态 payload”形成了清晰的聚合边界，既满足演化需求，也保留读取效率。
+
+### 五、当前实现补充说明
+
+- 当前代码不会自动创建索引，也不会自动执行 MongoDB 分片配置。
+- Stage 1 不支持题目分享、题库管理页面、跨问卷统计、题目使用查询，因此 `questions` 集合目前只按 `userId` 做隔离。
+- 当前 `surveys` 集合实际继续使用字段名 `is_anonymous`、`end_time`、`logicRules`，与现有代码风格保持一致。
