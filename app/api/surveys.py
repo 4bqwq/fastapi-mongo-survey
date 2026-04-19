@@ -8,7 +8,7 @@ from app.api.deps import get_current_user
 from app.core.database import get_database
 from app.models.survey import SurveyCreate, SurveyUpdateStatus, SurveySchemaUpdate, SurveyMetadataUpdate
 from app.models.user import UserInDB
-from app.services.question_service import build_question_snapshot
+from app.services.question_service import build_question_snapshot, get_question_version_for_accessible_user
 
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
@@ -198,9 +198,7 @@ async def update_survey_schema(
             raise HTTPException(422, detail={"code": 42201, "message": f"第{order_index}题 的顺序编号重复"})
         seen_order_indexes.add(order_index)
 
-        question_doc = await db.questions.find_one(
-            {"userId": current_user.id, "questionId": ref["questionId"], "version": ref["version"]}
-        )
+        question_doc = await get_question_version_for_accessible_user(db, current_user.id, ref["questionId"], ref["version"])
         if not question_doc:
             raise HTTPException(422, detail={"code": 42201, "message": f"题目 {ref['questionId']} 的版本 {ref['version']} 不存在"})
         if ref["questionId"] in seen_question_ids:

@@ -6,6 +6,13 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.models.user import PyObjectId
 
 
+class SharedGrant(BaseModel):
+    user_id: PyObjectId = Field(alias="userId")
+    shared_at: datetime = Field(default_factory=datetime.utcnow, alias="sharedAt")
+
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
+
+
 class QuestionContent(BaseModel):
     type: str
     title: str
@@ -32,11 +39,16 @@ class QuestionVersionCreate(QuestionContent):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class QuestionShareCreate(BaseModel):
+    username: str
+
+
 class QuestionInDB(QuestionContent):
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     question_id: str = Field(alias="questionId")
     user_id: PyObjectId = Field(alias="userId")
     version: int
+    shared_with: List[SharedGrant] = Field(default_factory=list, alias="sharedWith")
     previous_version_id: Optional[PyObjectId] = Field(default=None, alias="previousVersionId")
     version_chain_root_id: PyObjectId = Field(alias="versionChainRootId")
     created_at: datetime = Field(default_factory=datetime.utcnow, alias="createdAt")

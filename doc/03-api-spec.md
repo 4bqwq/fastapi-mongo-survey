@@ -72,9 +72,9 @@
 
 ------
 
-### 二、题目库与版本控制模块
+### 二、题目库、共享与版本控制模块
 
-Stage 1 只覆盖“题目独立存储 + 版本控制 + 问卷快照引用”。题目分享、题库管理页面、跨问卷统计、题目被哪些问卷使用查询均不在本阶段 API 范围内。
+Stage 2 在 Stage 1 的基础上新增“题目分享”和“题目使用查询”。题库管理页面与跨问卷统计仍不在本阶段 API 范围内。
 
 #### 接口名称：创建题目首个版本
 
@@ -136,7 +136,7 @@ Stage 1 只覆盖“题目独立存储 + 版本控制 + 问卷快照引用”。
 
 **说明**：
 
-- `base_version` 必须存在且属于当前用户。
+- `base_version` 必须存在且当前用户对该题具有所有权。
 - 新版本会写入 `previousVersionId`，形成 `v1 -> v2 -> v3` 单链。
 - 同一 `questionId` 下允许多个版本同时被不同问卷快照引用。
 
@@ -159,6 +159,11 @@ Stage 1 只覆盖“题目独立存储 + 版本控制 + 问卷快照引用”。
 **请求方式与路径**：`GET /api/v1/questions/{question_id}`
 
 **请求头/鉴权**：`Authorization: Bearer <Token>`
+
+**说明**：
+
+- 所有者可以查看自己题目的全部版本链。
+- 被共享用户也可以查看被共享题目的版本链，用于在问卷中选择具体版本。
 
 **返回结果**：
 
@@ -207,6 +212,87 @@ Stage 1 只覆盖“题目独立存储 + 版本控制 + 问卷快照引用”。
     "minValue": 0,
     "maxValue": 120,
     "mustBeInteger": true
+  }
+}
+```
+
+#### 接口名称：共享题目给指定用户
+
+**请求方式与路径**：`POST /api/v1/questions/{question_id}/shares`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>`
+
+**请求参数**：
+
+```json
+{
+  "username": "teammate_user"
+}
+```
+
+**说明**：
+
+- 只有题目所有者可以发起共享。
+- 共享关系对同一 `questionId` 的整个版本链生效，而不是只对单个版本生效。
+- 共享后，被共享用户拥有“查看版本详情 + 在自己问卷中使用”的权限，但没有创建新版本或继续转授的权限。
+
+**返回结果**：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "question_id": "q_bank_001",
+    "shared_with": [
+      {
+        "user_id": "6611aa22bb33cc44dd55ee66",
+        "username": "teammate_user"
+      }
+    ]
+  }
+}
+```
+
+#### 接口名称：查看题目共享列表
+
+**请求方式与路径**：`GET /api/v1/questions/{question_id}/shares`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>`
+
+**说明**：
+
+- 只有题目所有者可以查看共享列表。
+
+#### 接口名称：查看题目被哪些问卷使用
+
+**请求方式与路径**：`GET /api/v1/questions/{question_id}/usage`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>`
+
+**说明**：
+
+- 题目所有者可以查看该题被所有问卷引用的情况，包括其他被共享用户创建的问卷。
+- 被共享用户也可以查看该题的使用列表，但只能查看自己已经有权限使用的题。
+- 返回结果按问卷维度展开，并标明使用的 `version`。
+
+**返回结果**：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "question_id": "q_bank_001",
+    "usages": [
+      {
+        "survey_id": "6622aa33bb44cc55dd66ee77",
+        "survey_title": "2026年度产品满意度调查",
+        "survey_owner_id": "55aa66bb77cc88dd99ee00ff",
+        "survey_owner_username": "teammate_user",
+        "status": "PUBLISHED",
+        "question_version": 2,
+        "order_index": 1
+      }
+    ]
   }
 }
 ```
@@ -312,6 +398,7 @@ Stage 1 只覆盖“题目独立存储 + 版本控制 + 问卷快照引用”。
 - 请求中的 `questions` 只声明“问卷使用哪一个题目的哪一个版本，以及它在当前问卷中的顺序”。
 - 服务端会读取 `questions` 集合中的对应版本定义，并把当时的题目内容固化到 `surveys.questions[].snapshot` 中。
 - 问卷一旦保存完成，后续题库中该题继续升级版本，不会反向修改已保存问卷的 `snapshot`。
+- 若某题来自共享，服务端会先校验当前用户是否对该 `questionId` 拥有共享使用权限，再允许装配进问卷。
 
 **`surveys.questions` 落库结构说明**：
 
@@ -416,6 +503,6 @@ Stage 1 只覆盖“题目独立存储 + 版本控制 + 问卷快照引用”。
 
 ### 六、当前实现补充
 
-- Stage 1 没有提供题目删除、恢复旧版本、跨用户分享题目接口。
+- Stage 2 没有提供题目删除、恢复旧版本、题库管理页面、跨问卷统计接口。
 - `GET /api/v1/surveys/{survey_id}/schema` 返回的是问卷快照，而不是题库实时版本。
 - 同一 `questionId` 的多个版本可以同时被不同问卷引用，也可以在同一时刻分别存在于多个已发布问卷中。

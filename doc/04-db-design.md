@@ -15,7 +15,7 @@
 
 ### 集合：`questions`（题库版本表）
 
-**业务用途**：独立存储题目定义，支撑题目复用、版本隔离、版本历史与多版本共存。
+**业务用途**：独立存储题目定义，支撑题目复用、版本隔离、版本历史、多版本共存与跨用户共享访问。
 
 **模型设计策略**：采用“稳定业务主键 + 版本文档”设计。`questionId` 表示逻辑题目身份，单条文档表示该题的一个具体版本。问卷不直接引用“最新题目”，而是引用某个确定版本并在问卷中保存快照。
 
@@ -27,6 +27,9 @@
 | `version` | Int32 | 是 | 无 | 从 1 开始递增 |
 | `previousVersionId` | ObjectId/null | 否 | null | 指向上一版本，形成 `v1 -> v2 -> v3` 链 |
 | `versionChainRootId` | ObjectId | 是 | 无 | 指向首版本 `_id`，方便按整条版本链查询 |
+| `sharedWith` | Array | 否 | [] | 共享授权列表，按 `questionId` 维度在所有版本上保持一致 |
+| ├── `userId` | ObjectId | 是 | 无 | 被共享用户 ID |
+| ├── `sharedAt` | Date | 是 | 当前时间 | 共享建立时间 |
 | `type` | String | 是 | 无 | `ChoiceQuestion` / `TextQuestion` / `NumberQuestion` |
 | `title` | String | 是 | 无 | 题目标题 |
 | `isRequired` | Boolean | 是 | true | 必答标识 |
@@ -43,6 +46,7 @@
 - `{ userId: 1, questionId: 1 }`
 - `{ questionId: 1, version: 1 }` 唯一索引
 - `{ versionChainRootId: 1, version: 1 }`
+- `{ questionId: 1, "sharedWith.userId": 1 }`
 
 ------
 
@@ -88,6 +92,7 @@
 - `surveys.questions.snapshot` 是后续填写、渲染、统计的唯一真值来源。
 - 修改题库中的题目版本不会自动修改任何已存在问卷的快照。
 - 问卷可以同时引用同一 `questionId` 的不同版本，只要 `questionId + version` 组合明确且顺序合法。
+- 问卷装配题目时，允许引用“自己拥有的题目版本”或“别人共享给自己的题目版本”。
 
 ------
 
@@ -126,11 +131,12 @@
 **3. 为什么这个设计适合 MongoDB？**
 
 - `questions` 集合适合存放版本化文档，每个版本天然就是一条独立文档。
+- `sharedWith` 适合直接内嵌在题目版本文档中。共享关系与逻辑题目高度相关，且 Stage 2 只需要按题查共享，不需要复杂的独立授权模型。
 - `surveys.questions` 中的 `snapshot` 适合使用 MongoDB 的内嵌文档表达，不需要联表即可完成填写和统计。
-- “题库存版本、问卷存快照、答卷存动态 payload”形成了清晰的聚合边界，既满足演化需求，也保留读取效率。
+- “题库存版本与共享权限、问卷存快照、答卷存动态 payload”形成了清晰的聚合边界，既满足演化需求，也保留读取效率。
 
 ### 五、当前实现补充说明
 
 - 当前代码不会自动创建索引，也不会自动执行 MongoDB 分片配置。
-- Stage 1 不支持题目分享、题库管理页面、跨问卷统计、题目使用查询，因此 `questions` 集合目前只按 `userId` 做隔离。
+- Stage 2 已支持题目分享与题目使用查询，但仍不支持题库管理页面与跨问卷统计。
 - 当前 `surveys` 集合实际继续使用字段名 `is_anonymous`、`end_time`、`logicRules`，与现有代码风格保持一致。

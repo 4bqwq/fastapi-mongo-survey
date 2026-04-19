@@ -5,7 +5,7 @@
 | 维度 | 架构级定义 |
 | :--- | :--- |
 | **系统定位** | 轻量级、高扩展性的在线问卷构建、分发与数据收集分析平台 |
-| **核心业务目标** | 提供题目版本化管理、问卷快照固化、动态逻辑跳转与实时结构化数据统计能力 |
+| **核心业务目标** | 提供题目版本化管理、题目共享协作、问卷快照固化、动态逻辑跳转与实时结构化数据统计能力 |
 | **受众隔离** | 问卷发布者（B端视角/管理域）、问卷填写者（C端视角/收集域） |
 | **关键非功能需求** | 支撑中低频并发访问，单节点满足 500+ QPS；保证数据强隔离与输入校验可靠性 |
 | **演进约束** | 架构极简，规避过度设计，但必须预留题型扩展接口与存储水平扩展空间 |
@@ -27,6 +27,8 @@ flowchart TD
         SurveyBiz --> Editor[问卷快照与逻辑流转模块]
         QuestionBiz --> Bank[题库管理模块]
         QuestionBiz --> Versioning[题目版本链模块]
+        QuestionBiz --> Sharing[题目共享权限模块]
+        QuestionBiz --> Usage[题目使用查询模块]
         SurveyBiz --> Fill[问卷填写与校验模块]
         StatBiz --> Agg[聚合计算模块]
     end
@@ -36,6 +38,8 @@ flowchart TD
         Editor --> Mongo
         Bank --> Mongo
         Versioning --> Mongo
+        Sharing --> Mongo
+        Usage --> Mongo
         Fill --> Mongo
         Agg --> Mongo
     end
@@ -46,6 +50,8 @@ flowchart TD
 | **身份认证模块** | 承担用户注册鉴权、会话生命周期管理，确立租户/用户数据隔离屏障 |
 | **问卷配置模块** | 维护问卷元数据（标题、状态、截止时间、是否允许匿名填写），控制问卷启停状态 |
 | **题库与版本模块** | 管理独立题目定义、题目版本链、版本递增与版本详情查询 |
+| **题目共享权限模块** | 管理题目所有者对指定用户的共享授权，确保被共享用户可读可用但不可改权属 |
+| **题目使用查询模块** | 汇总某个题在所有问卷中的引用情况，支撑用户在改题前判断影响范围 |
 | **问卷快照与逻辑模块** | 按问卷维度选择具体题目版本，固化快照并装配动态跳转规则 |
 | **填写校验模块** | 承接 C 端流量，执行输入边界断言、路径推演与答卷数据持久化，拦截非法提交 |
 | **数据统计模块** | 基于问卷快照执行宏观回收率统计与微观题目聚合分析，避免题库后续变更污染历史统计 |
@@ -132,9 +138,15 @@ classDiagram
         +String questionId
         +Int version
         +String previousVersionId
+        +List~SharedGrant~ sharedWith
         +String type
         +Boolean isRequired
         +validate(input_data)
+    }
+
+    class SharedGrant {
+        +String userId
+        +DateTime sharedAt
     }
 
     class SurveyQuestionSnapshot {
@@ -186,6 +198,7 @@ classDiagram
     QuestionVersion <|-- ChoiceQuestion
     QuestionVersion <|-- TextQuestion
     QuestionVersion <|-- NumberQuestion
+    QuestionVersion --> SharedGrant : grants
     SurveyQuestionSnapshot --> QuestionVersion : snapshots
 ```
 
@@ -238,5 +251,6 @@ def compute_next_question(current_q: SurveyQuestionSnapshot, payload: Any, rules
 当前实现补充：
 
 - `GET /api/v1/surveys/{survey_id}/schema` 当前实现返回的是问卷快照而不是题库实时版本。
-- 当前实现新增 `questions` 集合，用于题目独立存储与版本链维护。
+- 当前实现新增 `questions` 集合，用于题目独立存储、版本链维护与共享授权。
+- 当前实现的题目使用查询通过扫描 `surveys.questions.questionId` 得出引用问卷列表。
 - 统计模块对文本题最多返回 20 条明细，对数字题最多返回 50 条明细，用于前端展示。
