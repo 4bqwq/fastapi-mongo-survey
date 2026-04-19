@@ -28,6 +28,7 @@ flowchart TD
         QuestionBiz --> Bank[题库管理模块]
         QuestionBiz --> Versioning[题目版本链模块]
         QuestionBiz --> Sharing[题目共享权限模块]
+        QuestionBiz --> Library[题库标记模块]
         QuestionBiz --> Usage[题目使用查询模块]
         SurveyBiz --> Fill[问卷填写与校验模块]
         StatBiz --> Agg[聚合计算模块]
@@ -39,6 +40,7 @@ flowchart TD
         Bank --> Mongo
         Versioning --> Mongo
         Sharing --> Mongo
+        Library --> Mongo
         Usage --> Mongo
         Fill --> Mongo
         Agg --> Mongo
@@ -51,6 +53,7 @@ flowchart TD
 | **问卷配置模块** | 维护问卷元数据（标题、状态、截止时间、是否允许匿名填写），控制问卷启停状态 |
 | **题库与版本模块** | 管理独立题目定义、题目版本链、版本递增与版本详情查询 |
 | **题目共享权限模块** | 管理题目所有者对指定用户的共享授权，确保被共享用户可读可用但不可改权属 |
+| **题库标记模块** | 管理用户对题目的加入题库与移出题库标记，形成用户视角下的题库浏览列表 |
 | **题目使用查询模块** | 汇总某个题在所有问卷中的引用情况，支撑用户在改题前判断影响范围 |
 | **问卷快照与逻辑模块** | 按问卷维度选择具体题目版本，固化快照并装配动态跳转规则 |
 | **填写校验模块** | 承接 C 端流量，执行输入边界断言、路径推演与答卷数据持久化，拦截非法提交 |
@@ -149,6 +152,11 @@ classDiagram
         +DateTime sharedAt
     }
 
+    class LibraryGrant {
+        +String userId
+        +DateTime addedAt
+    }
+
     class SurveyQuestionSnapshot {
         +String questionId
         +Int version
@@ -199,6 +207,7 @@ classDiagram
     QuestionVersion <|-- TextQuestion
     QuestionVersion <|-- NumberQuestion
     QuestionVersion --> SharedGrant : grants
+    QuestionVersion --> LibraryGrant : in_library
     SurveyQuestionSnapshot --> QuestionVersion : snapshots
 ```
 
@@ -252,5 +261,6 @@ def compute_next_question(current_q: SurveyQuestionSnapshot, payload: Any, rules
 
 - `GET /api/v1/surveys/{survey_id}/schema` 当前实现返回的是问卷快照而不是题库实时版本。
 - 当前实现新增 `questions` 集合，用于题目独立存储、版本链维护与共享授权。
+- 当前实现的题库管理在 `questions` 集合内维护按用户记录的题库标记，不额外引入独立题库集合。
 - 当前实现的题目使用查询通过扫描 `surveys.questions.questionId` 得出引用问卷列表。
 - 统计模块对文本题最多返回 20 条明细，对数字题最多返回 50 条明细，用于前端展示。

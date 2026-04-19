@@ -74,7 +74,7 @@
 
 ### 二、题目库、共享与版本控制模块
 
-Stage 2 在 Stage 1 的基础上新增“题目分享”和“题目使用查询”。题库管理页面与跨问卷统计仍不在本阶段 API 范围内。
+Stage 3 在 Stage 2 的基础上新增“题库管理”，支持加入题库、移出题库和浏览题库。跨问卷统计仍不在本阶段 API 范围内。
 
 #### 接口名称：创建题目首个版本
 
@@ -297,6 +297,72 @@ Stage 2 在 Stage 1 的基础上新增“题目分享”和“题目使用查询
 }
 ```
 
+#### 接口名称：加入题库
+
+**请求方式与路径**：`POST /api/v1/questions/{question_id}/library`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>`
+
+**说明**：
+
+- 当前用户可以把“自己拥有的题”或“别人共享给自己的题”加入自己的题库。
+- 题库标记按 `questionId` 生效，对该逻辑题的全部版本保持一致。
+
+**返回结果**：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "question_id": "q_bank_001",
+    "in_library": true
+  }
+}
+```
+
+#### 接口名称：移出题库
+
+**请求方式与路径**：`DELETE /api/v1/questions/{question_id}/library`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>`
+
+**说明**：
+
+- 只移除当前用户自己的题库标记，不删除题目实体，也不影响共享关系和已存在问卷。
+
+#### 接口名称：浏览我的题库
+
+**请求方式与路径**：`GET /api/v1/questions/library`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>`
+
+**说明**：
+
+- 返回当前用户题库中的全部逻辑题，覆盖“自己创建的题”和“别人共享给自己且已加入题库的题”。
+- 每个逻辑题以题目维度返回一条摘要，而不是按版本重复展开。
+
+**返回结果**：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "questions": [
+      {
+        "question_id": "q_bank_001",
+        "owner_user_id": "6611aa22bb33cc44dd55ee66",
+        "owner_username": "teacher_user",
+        "latest_version": 2,
+        "latest_title": "你的年龄",
+        "type": "NumberQuestion",
+        "is_shared": true,
+        "in_library": true
+      }
+    ]
+  }
+}
+```
+
 ------
 
 ### 三、问卷管理与配置模块
@@ -503,6 +569,6 @@ Stage 2 在 Stage 1 的基础上新增“题目分享”和“题目使用查询
 
 ### 六、当前实现补充
 
-- Stage 2 没有提供题目删除、恢复旧版本、题库管理页面、跨问卷统计接口。
+- Stage 3 没有提供题目删除、恢复旧版本、题库管理页面、跨问卷统计接口。
 - `GET /api/v1/surveys/{survey_id}/schema` 返回的是问卷快照，而不是题库实时版本。
 - 同一 `questionId` 的多个版本可以同时被不同问卷引用，也可以在同一时刻分别存在于多个已发布问卷中。

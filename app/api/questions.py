@@ -6,16 +6,20 @@ from app.core.database import get_database
 from app.models.question import QuestionCreate, QuestionVersionCreate, QuestionShareCreate
 from app.models.user import UserInDB
 from app.services.question_service import (
+    add_question_to_library,
     create_question,
     create_question_version,
-    serialize_question_doc,
     get_question_version_for_accessible_user,
+    list_library_questions,
     list_accessible_question_versions,
-    share_question_with_user,
-    list_question_shares,
-    serialize_shared_grants,
     get_question_any_version_for_accessible_user,
     list_question_usages,
+    list_question_shares,
+    remove_question_from_library,
+    serialize_library_state,
+    serialize_question_doc,
+    serialize_shared_grants,
+    share_question_with_user,
 )
 
 
@@ -43,6 +47,33 @@ async def create_question_endpoint(
             "version": question_doc["version"],
             "version_id": str(question_doc["_id"]),
             "version_chain_root_id": str(question_doc["versionChainRootId"]),
+        },
+    }
+
+
+@router.get("/library", response_model=dict)
+async def browse_library(
+    current_user: UserInDB = Depends(get_current_user),
+    db=Depends(get_database),
+):
+    questions = await list_library_questions(db, current_user.id)
+    users_by_id = await build_users_by_id(db, [question["userId"] for question in questions])
+    return {
+        "code": 200,
+        "data": {
+            "questions": [
+                {
+                    "question_id": question["questionId"],
+                    "owner_user_id": str(question["userId"]),
+                    "owner_username": users_by_id.get(question["userId"], {}).get("username"),
+                    "latest_version": question["version"],
+                    "latest_title": question["title"],
+                    "type": question["type"],
+                    "is_shared": question["userId"] != current_user.id,
+                    "in_library": serialize_library_state(question, current_user.id),
+                }
+                for question in questions
+            ]
         },
     }
 
@@ -111,6 +142,38 @@ async def get_question_version_detail(
         raise HTTPException(404, detail={"code": 40401, "message": "题目版本不存在"})
 
     return {"code": 200, "data": serialize_question_doc(question_doc)}
+
+
+@router.post("/{question_id}/library", response_model=dict)
+async def add_to_library(
+    question_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+    db=Depends(get_database),
+):
+    question_doc = await add_question_to_library(db, current_user.id, question_id)
+    return {
+        "code": 200,
+        "data": {
+            "question_id": question_id,
+            "in_library": serialize_library_state(question_doc, current_user.id),
+        },
+    }
+
+
+@router.delete("/{question_id}/library", response_model=dict)
+async def remove_from_library(
+    question_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+    db=Depends(get_database),
+):
+    question_doc = await remove_question_from_library(db, current_user.id, question_id)
+    return {
+        "code": 200,
+        "data": {
+            "question_id": question_id,
+            "in_library": serialize_library_state(question_doc, current_user.id),
+        },
+    }
 
 
 @router.post("/{question_id}/shares", response_model=dict)

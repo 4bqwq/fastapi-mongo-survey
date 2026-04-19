@@ -118,6 +118,10 @@ def serialize_shared_grants(question_docs: list[dict], users_by_id: dict[ObjectI
     return grants
 
 
+def serialize_library_state(question_doc: dict, user_id: ObjectId) -> bool:
+    return any(grant["userId"] == user_id for grant in question_doc.get("libraryMembers", []))
+
+
 def serialize_question_doc(question_doc: dict) -> dict:
     data = extract_question_content(question_doc)
     data.update(
@@ -128,6 +132,7 @@ def serialize_question_doc(question_doc: dict) -> dict:
             "version_id": str(question_doc["_id"]),
             "previous_version_id": str(question_doc["previousVersionId"]) if question_doc.get("previousVersionId") else None,
             "shared_user_ids": [str(grant["userId"]) for grant in question_doc.get("sharedWith", [])],
+            "library_user_ids": [str(grant["userId"]) for grant in question_doc.get("libraryMembers", [])],
         }
     )
     return data
@@ -166,6 +171,7 @@ async def create_question(db, user_id: ObjectId, payload: dict) -> dict:
         "userId": user_id,
         "version": 1,
         "sharedWith": [],
+        "libraryMembers": [],
         "previousVersionId": None,
         "versionChainRootId": root_id,
         **content,
@@ -190,6 +196,7 @@ async def create_question_version(db, user_id: ObjectId, question_id: str, base_
         "userId": user_id,
         "version": next_version,
         "sharedWith": list(base_doc.get("sharedWith", [])),
+        "libraryMembers": list(base_doc.get("libraryMembers", [])),
         "previousVersionId": base_doc["_id"],
         "versionChainRootId": base_doc["versionChainRootId"],
         **content,
@@ -259,3 +266,46 @@ async def list_question_usages(db, question_id: str) -> list[dict]:
                 )
     usages.sort(key=lambda item: (item["survey_title"], item["order_index"], item["question_version"]))
     return usages
+
+
+async def add_question_to_library(db, user_id: ObjectId, question_id: str) -> dict:
+    accessible_doc = await get_question_any_version_for_accessible_user(db, user_id, question_id)
+    if not accessible_doc:
+        raise HTTPException(404, detail={"code": 40401, "message": "题目不存在"})
+
+    if serialize_library_state(accessible_doc, user_id):
+        return accessible_doc
+
+    grant = {"userId": user_id, "addedAt": utcnow()}
+    await db.questions.update_many(
+        {"questionId": question_id},
+        {"$push": {"libraryMembers": grant}, "$set": {"updatedAt": utcnow()}},
+    )
+    return await db.questions.find_one({"questionId": question_id, **get_question_access_filter(user_id)}, sort=[("version", -1)])
+
+
+async def remove_question_from_library(db, user_id: ObjectId, question_id: str) -> dict:
+    accessible_doc = await get_question_any_version_for_accessible_user(db, user_id, question_id)
+    if not accessible_doc:
+        raise HTTPException(404, detail={"code": 40401, "message": "题目不存在"})
+
+    await db.questions.update_many(
+        {"questionId": question_id},
+        {"$pull": {"libraryMembers": {"userId": user_id}}, "$set": {"updatedAt": utcnow()}},
+    )
+    return await db.questions.find_one({"questionId": question_id, **get_question_access_filter(user_id)}, sort=[("version", -1)])
+
+
+async def list_library_questions(db, user_id: ObjectId) -> list[dict]:
+    cursor = db.questions.find(
+        {
+            "libraryMembers.userId": user_id,
+            **get_question_access_filter(user_id),
+        },
+        sort=[("questionId", 1), ("version", -1)],
+    )
+    docs = await cursor.to_list(length=500)
+    latest_by_question_id = {}
+    for doc in docs:
+        latest_by_question_id.setdefault(doc["questionId"], doc)
+    return list(latest_by_question_id.values())

@@ -13,6 +13,13 @@ class SharedGrant(BaseModel):
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 
+class LibraryGrant(BaseModel):
+    user_id: PyObjectId = Field(alias="userId")
+    added_at: datetime = Field(default_factory=datetime.utcnow, alias="addedAt")
+
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
+
+
 class QuestionContent(BaseModel):
     type: str
     title: str
@@ -49,6 +56,7 @@ class QuestionInDB(QuestionContent):
     user_id: PyObjectId = Field(alias="userId")
     version: int
     shared_with: List[SharedGrant] = Field(default_factory=list, alias="sharedWith")
+    library_members: List[LibraryGrant] = Field(default_factory=list, alias="libraryMembers")
     previous_version_id: Optional[PyObjectId] = Field(default=None, alias="previousVersionId")
     version_chain_root_id: PyObjectId = Field(alias="versionChainRootId")
     created_at: datetime = Field(default_factory=datetime.utcnow, alias="createdAt")
