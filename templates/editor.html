@@ -8,98 +8,237 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/static/js/auth.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <nav class="bg-white shadow-md p-4 flex justify-between items-center">
-        <div class="flex items-center space-x-4">
-            <a href="/dashboard" class="text-blue-600 hover:underline">← 返回看板</a>
-            <h1 id="surveyTitle" class="text-xl font-bold text-gray-800">加载中...</h1>
+<body class="min-h-screen bg-slate-100 text-slate-900">
+    <nav class="border-b border-slate-200 bg-white">
+        <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="text-sm font-medium text-sky-700 hover:text-sky-900">← 返回看板</a>
+                <div>
+                    <h1 id="surveyTitle" class="text-xl font-bold">加载中...</h1>
+                    <p class="text-sm text-slate-500">编辑问卷结构，同时维护题库与题目版本。</p>
+                </div>
+            </div>
+            <button onclick="saveSchema()" class="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
+                保存问卷
+            </button>
         </div>
-        <button onclick="saveSchema()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg shadow-sm transition">
-            保存问卷
-        </button>
     </nav>
 
-    <div class="container mx-auto p-6 flex flex-col xl:flex-row gap-6">
-        <div class="flex-1 space-y-4">
-            <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
-                <div>
-                    <label class="text-xs font-bold text-gray-400 uppercase">问卷标题</label>
-                    <input id="metaTitle" type="text" class="w-full border rounded p-2 mt-1">
-                </div>
-                <div>
-                    <label class="text-xs font-bold text-gray-400 uppercase">问卷说明</label>
-                    <textarea id="metaDescription" class="w-full border rounded p-2 mt-1" rows="3"></textarea>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <label class="flex items-center text-sm font-medium text-gray-700 mt-6">
-                        <input id="metaAnonymous" type="checkbox" class="mr-2"> 允许填写者匿名提交
+    <main class="mx-auto grid max-w-7xl gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1.45fr)_26rem]">
+        <section class="space-y-6">
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="md:col-span-2">
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">问卷标题</label>
+                        <input id="metaTitle" type="text" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">问卷说明</label>
+                        <textarea id="metaDescription" rows="3" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"></textarea>
+                    </div>
+                    <label class="mt-6 flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input id="metaAnonymous" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                        允许填写者匿名提交
                     </label>
                     <div>
-                        <label class="text-xs font-bold text-gray-400 uppercase">截止时间</label>
-                        <input id="metaEndTime" type="datetime-local" class="w-full border rounded p-2 mt-1">
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">截止时间</label>
+                        <input id="metaEndTime" type="datetime-local" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white p-6 rounded-xl shadow-sm border">
-                <div class="flex items-center justify-between mb-4">
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <h2 class="text-lg font-bold text-gray-800">问卷题目</h2>
-                        <p class="text-sm text-gray-500">从题库中选择题目加入当前问卷，题目内容由版本快照提供。</p>
+                        <h2 class="text-lg font-bold">问卷题目</h2>
+                        <p class="text-sm text-slate-500">题目以版本快照装配进问卷。编辑器里只改引用关系和跳转逻辑，不直接改题库定义。</p>
                     </div>
-                    <button onclick="openLibraryDrawer()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
-                        从题库选题
-                    </button>
+                    <div class="flex flex-wrap gap-3">
+                        <button onclick="openQuestionFormModal('create')" class="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100">
+                            新建题目
+                        </button>
+                        <button onclick="openLibraryDrawer()" class="rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700">
+                            从题库选题
+                        </button>
+                    </div>
                 </div>
                 <div id="questionsContainer" class="space-y-4"></div>
             </div>
-        </div>
+        </section>
 
-        <div class="w-full xl:w-96 space-y-4">
-            <div class="bg-white p-6 rounded-xl shadow-sm border">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-bold text-sm uppercase text-gray-400">我的题库</h3>
-                    <button onclick="loadLibrary()" class="text-sm text-blue-600 hover:underline">刷新</button>
+        <aside class="space-y-6">
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-sm font-bold uppercase tracking-[0.24em] text-slate-400">题目工作台</h2>
+                        <p class="mt-2 text-sm text-slate-500">这里汇总题库中的题，以及本次会话中新建或查看过的题，方便继续加入题库、分享、查看版本与使用情况。</p>
+                    </div>
+                    <button onclick="loadLibrary()" class="text-sm font-medium text-sky-700 hover:text-sky-900">刷新</button>
                 </div>
-                <div id="libraryList" class="space-y-3 max-h-[30rem] overflow-y-auto"></div>
-            </div>
+                <div class="mb-4 rounded-2xl bg-slate-50 p-4 text-xs leading-6 text-slate-500">
+                    完整操作流：新建题目 → 保存到题库 → 加入当前问卷 → 分享给其他用户 → 查看版本历史 → 查看使用情况 → 查看跨问卷统计
+                </div>
+                <div id="libraryList" class="space-y-3"></div>
+            </section>
 
-            <div class="bg-white p-6 rounded-xl shadow-sm border">
-                <h3 class="font-bold mb-4 text-sm uppercase text-gray-400">规则说明</h3>
-                <ul class="text-xs space-y-2 text-gray-500">
-                    <li>• 跳转规则只作用于当前问卷，不会修改题库中的题目内容。</li>
-                    <li>• 选择题条件使用选项行号，如 `1` 或 `1 3`。</li>
-                    <li>• 只有当选择组合完全一致时才会触发跳转。</li>
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 class="text-sm font-bold uppercase tracking-[0.24em] text-slate-400">规则说明</h3>
+                <ul class="mt-4 space-y-2 text-sm leading-6 text-slate-500">
+                    <li>跳转规则只作用于当前问卷，不会回写题库版本。</li>
+                    <li>选择题条件用选项行号填写，例如 `1` 或 `1 3`。</li>
+                    <li>多选跳转按完整组合匹配，不能只靠部分重合触发。</li>
                 </ul>
-            </div>
-            <div id="logicRulesSummary" class="bg-white p-6 rounded-xl shadow-sm border">
-                <h3 class="font-bold mb-4">全局规则概览</h3>
-                <div id="rulesList" class="space-y-2 text-sm"></div>
-            </div>
-        </div>
-    </div>
+            </section>
 
-    <div id="libraryDrawer" class="fixed inset-0 bg-black/40 hidden">
-        <div class="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl p-6 overflow-y-auto">
-            <div class="flex items-center justify-between mb-4">
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 class="mb-4 text-sm font-bold uppercase tracking-[0.24em] text-slate-400">全局规则概览</h3>
+                <div id="rulesList" class="space-y-2 text-sm"></div>
+            </section>
+        </aside>
+    </main>
+
+    <div id="libraryDrawer" class="fixed inset-0 hidden bg-slate-950/50">
+        <div class="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto bg-white p-6 shadow-2xl">
+            <div class="mb-4 flex items-start justify-between gap-4">
                 <div>
-                    <h2 class="text-xl font-bold text-gray-800">从题库选择题目</h2>
-                    <p class="text-sm text-gray-500">这里展示你已加入题库的题目，可直接加入当前问卷。</p>
+                    <h2 class="text-2xl font-bold">从题库选择题目</h2>
+                    <p class="mt-1 text-sm text-slate-500">你可以直接把题库中的题装配进当前问卷，也可以先查看详情、分享、追版本链。</p>
                 </div>
-                <button onclick="closeLibraryDrawer()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">×</button>
+                <button onclick="closeLibraryDrawer()" class="text-3xl leading-none text-slate-400 hover:text-slate-600">×</button>
             </div>
             <div id="drawerLibraryList" class="space-y-3"></div>
         </div>
     </div>
 
-    <div id="questionStatsModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6">
-            <div class="flex items-start justify-between mb-4">
+    <div id="questionFormModal" class="fixed inset-0 hidden items-center justify-center bg-slate-950/50 p-4">
+        <div class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="mb-6 flex items-start justify-between gap-4">
                 <div>
-                    <h2 id="questionStatsTitle" class="text-xl font-bold text-gray-800">跨问卷统计</h2>
-                    <p id="questionStatsSubtitle" class="text-sm text-gray-500 mt-1"></p>
+                    <h2 id="questionFormTitle" class="text-2xl font-bold">新建题目</h2>
+                    <p id="questionFormSubtitle" class="mt-1 text-sm text-slate-500"></p>
                 </div>
-                <button onclick="closeQuestionStatsModal()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">×</button>
+                <button onclick="closeQuestionFormModal()" class="text-3xl leading-none text-slate-400 hover:text-slate-600">×</button>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">题型</label>
+                    <select id="formQuestionType" onchange="onQuestionTypeChange()" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                        <option value="ChoiceQuestion">选择题</option>
+                        <option value="TextQuestion">文本题</option>
+                        <option value="NumberQuestion">数字题</option>
+                    </select>
+                </div>
+                <label class="mt-8 flex items-center gap-2 text-sm font-medium text-slate-700">
+                    <input id="formIsRequired" type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                    必答题
+                </label>
+                <div class="md:col-span-2">
+                    <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">题目标题</label>
+                    <input id="formQuestionTitle" type="text" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100" placeholder="请输入题目标题">
+                </div>
+            </div>
+
+            <div id="choiceFields" class="mt-6 rounded-3xl bg-slate-50 p-5">
+                <h3 class="font-semibold text-slate-800">选择题配置</h3>
+                <div class="mt-4">
+                    <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">选项列表</label>
+                    <textarea id="formOptions" rows="5" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100" placeholder="每行一个选项"></textarea>
+                </div>
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">最少选择数</label>
+                        <input id="formMinSelect" type="number" min="1" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">最多选择数</label>
+                        <input id="formMaxSelect" type="number" min="1" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                    </div>
+                </div>
+            </div>
+
+            <div id="textFields" class="mt-6 hidden rounded-3xl bg-slate-50 p-5">
+                <h3 class="font-semibold text-slate-800">文本题配置</h3>
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">最少字数</label>
+                        <input id="formMinLength" type="number" min="0" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">最多字数</label>
+                        <input id="formMaxLength" type="number" min="0" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                    </div>
+                </div>
+            </div>
+
+            <div id="numberFields" class="mt-6 hidden rounded-3xl bg-slate-50 p-5">
+                <h3 class="font-semibold text-slate-800">数字题配置</h3>
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">最小值</label>
+                        <input id="formMinValue" type="number" step="any" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">最大值</label>
+                        <input id="formMaxValue" type="number" step="any" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                    </div>
+                </div>
+                <label class="mt-4 flex items-center gap-2 text-sm font-medium text-slate-700">
+                    <input id="formMustBeInteger" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                    仅允许整数
+                </label>
+            </div>
+
+            <div id="questionFormExtraOptions" class="mt-6 rounded-3xl bg-amber-50 p-5">
+                <div id="createOptionsBlock" class="space-y-3">
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input id="formSaveToLibrary" type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                        保存到题库
+                    </label>
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input id="formAddToSurvey" type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                        创建后直接加入当前问卷
+                    </label>
+                </div>
+                <div id="versionOptionsBlock" class="hidden space-y-3">
+                    <div class="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500">
+                        新版本会沿用同一个 `questionId`，形成新的版本链节点，不会影响已经发布或已保存的问卷快照。
+                    </div>
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input id="formAddNewVersionToSurvey" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                        新版本创建后替换加入当前问卷
+                    </label>
+                </div>
+            </div>
+
+            <div class="mt-6 flex items-center justify-end gap-3">
+                <button onclick="closeQuestionFormModal()" class="rounded-full border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">取消</button>
+                <button id="questionFormSubmit" onclick="submitQuestionForm()" class="rounded-full bg-sky-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-sky-700">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="questionCenterModal" class="fixed inset-0 hidden items-center justify-center bg-slate-950/50 p-4">
+        <div class="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="mb-6 flex items-start justify-between gap-4">
+                <div>
+                    <h2 id="questionCenterTitle" class="text-2xl font-bold">题目详情</h2>
+                    <p id="questionCenterSubtitle" class="mt-1 text-sm text-slate-500"></p>
+                </div>
+                <button onclick="closeQuestionCenterModal()" class="text-3xl leading-none text-slate-400 hover:text-slate-600">×</button>
+            </div>
+            <div id="questionCenterContent"></div>
+        </div>
+    </div>
+
+    <div id="questionStatsModal" class="fixed inset-0 hidden items-center justify-center bg-slate-950/50 p-4">
+        <div class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="mb-4 flex items-start justify-between gap-4">
+                <div>
+                    <h2 id="questionStatsTitle" class="text-xl font-bold">跨问卷统计</h2>
+                    <p id="questionStatsSubtitle" class="mt-1 text-sm text-slate-500"></p>
+                </div>
+                <button onclick="closeQuestionStatsModal()" class="text-3xl leading-none text-slate-400 hover:text-slate-600">×</button>
             </div>
             <div id="questionStatsContent"></div>
         </div>
@@ -110,6 +249,12 @@
         let selectedQuestions = [];
         let logicRules = [];
         let libraryQuestions = [];
+        let sessionQuestions = {};
+        let questionMetaMap = {};
+        let questionDetailCache = {};
+        let questionCenterState = null;
+        let questionFormState = { mode: 'create', questionId: null, baseVersion: null };
+        let questionStatsChart = null;
 
         function toDatetimeLocal(value) {
             if (!value) return '';
@@ -132,7 +277,7 @@
             if (type === 'ChoiceQuestion') return '选择题';
             if (type === 'TextQuestion') return '文本题';
             if (type === 'NumberQuestion') return '数字题';
-            return type;
+            return type || '未知题型';
         }
 
         function getSnapshot(question) {
@@ -141,6 +286,160 @@
 
         function getQuestionById(questionId) {
             return selectedQuestions.find((question) => question.questionId === questionId);
+        }
+
+        function parseOptionsText(text) {
+            return String(text || '')
+                .split('\n')
+                .map((item) => item.trim())
+                .filter(Boolean);
+        }
+
+        function parseOptionalInt(value) {
+            if (value === '' || value == null) return null;
+            const parsed = Number.parseInt(value, 10);
+            return Number.isNaN(parsed) ? null : parsed;
+        }
+
+        function parseOptionalFloat(value) {
+            if (value === '' || value == null) return null;
+            const parsed = Number.parseFloat(value);
+            return Number.isNaN(parsed) ? null : parsed;
+        }
+
+        function buildQuestionPayloadFromForm() {
+            const type = document.getElementById('formQuestionType').value;
+            const payload = {
+                type,
+                title: document.getElementById('formQuestionTitle').value.trim(),
+                isRequired: document.getElementById('formIsRequired').checked
+            };
+
+            if (!payload.title) {
+                throw new Error('题目标题不能为空');
+            }
+
+            if (type === 'ChoiceQuestion') {
+                payload.options = parseOptionsText(document.getElementById('formOptions').value);
+                payload.minSelect = parseOptionalInt(document.getElementById('formMinSelect').value);
+                payload.maxSelect = parseOptionalInt(document.getElementById('formMaxSelect').value);
+            } else if (type === 'TextQuestion') {
+                payload.minLength = parseOptionalInt(document.getElementById('formMinLength').value);
+                payload.maxLength = parseOptionalInt(document.getElementById('formMaxLength').value);
+            } else if (type === 'NumberQuestion') {
+                payload.minValue = parseOptionalFloat(document.getElementById('formMinValue').value);
+                payload.maxValue = parseOptionalFloat(document.getElementById('formMaxValue').value);
+                payload.mustBeInteger = document.getElementById('formMustBeInteger').checked;
+            }
+
+            Object.keys(payload).forEach((key) => {
+                if (payload[key] === null) {
+                    delete payload[key];
+                }
+            });
+            return payload;
+        }
+
+        function fillQuestionForm(payload) {
+            document.getElementById('formQuestionType').value = payload.type || 'ChoiceQuestion';
+            document.getElementById('formQuestionTitle').value = payload.title || '';
+            document.getElementById('formIsRequired').checked = payload.isRequired !== false;
+            document.getElementById('formOptions').value = (payload.options || []).join('\n');
+            document.getElementById('formMinSelect').value = payload.minSelect ?? '';
+            document.getElementById('formMaxSelect').value = payload.maxSelect ?? '';
+            document.getElementById('formMinLength').value = payload.minLength ?? '';
+            document.getElementById('formMaxLength').value = payload.maxLength ?? '';
+            document.getElementById('formMinValue').value = payload.minValue ?? '';
+            document.getElementById('formMaxValue').value = payload.maxValue ?? '';
+            document.getElementById('formMustBeInteger').checked = !!payload.mustBeInteger;
+            onQuestionTypeChange();
+        }
+
+        function onQuestionTypeChange() {
+            const type = document.getElementById('formQuestionType').value;
+            document.getElementById('choiceFields').classList.toggle('hidden', type !== 'ChoiceQuestion');
+            document.getElementById('textFields').classList.toggle('hidden', type !== 'TextQuestion');
+            document.getElementById('numberFields').classList.toggle('hidden', type !== 'NumberQuestion');
+        }
+
+        function rememberQuestion(summary) {
+            if (!summary || !summary.question_id) return;
+            sessionQuestions[summary.question_id] = { ...(sessionQuestions[summary.question_id] || {}), ...summary };
+            questionMetaMap[summary.question_id] = { ...(questionMetaMap[summary.question_id] || {}), ...summary };
+        }
+
+        function getQuestionMeta(questionId) {
+            return questionMetaMap[questionId] || sessionQuestions[questionId] || null;
+        }
+
+        function getWorkspaceQuestions() {
+            const merged = {};
+            libraryQuestions.forEach((question) => {
+                merged[question.question_id] = { ...merged[question.question_id], ...question };
+            });
+            Object.values(sessionQuestions).forEach((question) => {
+                merged[question.question_id] = { ...merged[question.question_id], ...question };
+            });
+            return Object.values(merged).sort((a, b) => {
+                const aLibrary = a.in_library ? 1 : 0;
+                const bLibrary = b.in_library ? 1 : 0;
+                if (aLibrary !== bLibrary) return bLibrary - aLibrary;
+                return (a.latest_title || '').localeCompare(b.latest_title || '', 'zh-Hans-CN');
+            });
+        }
+
+        function renderLibraryCard(question) {
+            const alreadySelected = selectedQuestions.some((item) => item.questionId === question.question_id);
+            const ownerBadge = question.is_shared ? '共享题' : '我的题';
+            const libraryBadge = question.in_library ? '已在题库' : '未入库';
+            return `
+                <article class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <div class="mb-2 flex flex-wrap items-center gap-2">
+                                <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">${ownerBadge}</span>
+                                <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">${libraryBadge}</span>
+                                <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">v${question.latest_version}</span>
+                            </div>
+                            <h3 class="truncate text-base font-bold text-slate-800">${escapeHtml(question.latest_title || '未命名题目')}</h3>
+                            <p class="mt-1 text-sm text-slate-500">${formatQuestionType(question.type)} · 所有者：${escapeHtml(question.owner_username || '未知用户')}</p>
+                        </div>
+                        <button onclick="openQuestionCenter('${question.question_id}', ${question.latest_version})" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-white">
+                            题目详情
+                        </button>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <button ${alreadySelected ? 'disabled' : ''} onclick="addLibraryQuestion('${question.question_id}', ${question.latest_version})" class="${alreadySelected ? 'cursor-not-allowed bg-slate-200 text-slate-500' : 'bg-sky-600 text-white hover:bg-sky-700'} rounded-full px-3 py-2 text-sm font-semibold transition">
+                            ${alreadySelected ? '已加入问卷' : '加入问卷'}
+                        </button>
+                        <button onclick="toggleLibrary('${question.question_id}')" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-white">
+                            ${question.in_library ? '移出题库' : '加入题库'}
+                        </button>
+                        <button onclick="openQuestionCenter('${question.question_id}', ${question.latest_version}, 'share')" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-white">
+                            分享给...
+                        </button>
+                        <button onclick="openQuestionCenter('${question.question_id}', ${question.latest_version}, 'versions')" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-white">
+                            版本历史
+                        </button>
+                        <button onclick="openQuestionCenter('${question.question_id}', ${question.latest_version}, 'usage')" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-white">
+                            查看使用情况
+                        </button>
+                        <button onclick="openCrossStats('${question.question_id}')" class="rounded-full bg-fuchsia-50 px-3 py-2 text-sm font-medium text-fuchsia-700 transition hover:bg-fuchsia-100">
+                            跨问卷统计
+                        </button>
+                    </div>
+                </article>
+            `;
+        }
+
+        function renderLibraryLists() {
+            const workspaceQuestions = getWorkspaceQuestions();
+            const content = workspaceQuestions.length === 0
+                ? '<div class="rounded-3xl border-2 border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-400">题库为空。先点击“新建题目”，默认保存到题库后就能在这里继续装配进问卷。</div>'
+                : workspaceQuestions.map((question) => renderLibraryCard(question)).join('');
+
+            document.getElementById('libraryList').innerHTML = content;
+            document.getElementById('drawerLibraryList').innerHTML = content;
         }
 
         async function loadSchema() {
@@ -158,6 +457,18 @@
             document.getElementById('metaEndTime').value = toDatetimeLocal(result.data.end_time);
 
             selectedQuestions = (result.data.questions || []).sort((a, b) => a.orderIndex - b.orderIndex);
+            selectedQuestions.forEach((question) => {
+                const snapshot = question.snapshot || {};
+                rememberQuestion({
+                    question_id: question.questionId,
+                    latest_version: question.version,
+                    latest_title: snapshot.title,
+                    type: snapshot.type,
+                    owner_username: question.owner_username,
+                    is_shared: false,
+                    in_library: !!getQuestionMeta(question.questionId)?.in_library
+                });
+            });
             logicRules = result.data.logic_rules || [];
             renderEditor();
         }
@@ -166,51 +477,18 @@
             const response = await authenticatedFetch('/api/v1/questions/library');
             const result = await response.json();
             if (!response.ok) {
-                document.getElementById('libraryList').innerHTML = `<p class="text-sm text-red-500">加载题库失败</p>`;
-                document.getElementById('drawerLibraryList').innerHTML = `<p class="text-sm text-red-500">加载题库失败</p>`;
+                document.getElementById('libraryList').innerHTML = '<p class="text-sm text-rose-500">加载题库失败</p>';
+                document.getElementById('drawerLibraryList').innerHTML = '<p class="text-sm text-rose-500">加载题库失败</p>';
                 return;
             }
+
             libraryQuestions = result.data.questions || [];
+            libraryQuestions.forEach((question) => rememberQuestion(question));
             renderLibraryLists();
         }
 
-        function renderLibraryLists() {
-            const content = libraryQuestions.length === 0
-                ? '<p class="text-sm text-gray-400 italic">题库为空，请先把题加入题库。</p>'
-                : libraryQuestions.map((question) => renderLibraryCard(question)).join('');
-
-            document.getElementById('libraryList').innerHTML = content;
-            document.getElementById('drawerLibraryList').innerHTML = content;
-        }
-
-        function renderLibraryCard(question) {
-            const alreadySelected = selectedQuestions.some((item) => item.questionId === question.question_id);
-            const badge = question.is_shared ? '共享题' : '我的题';
-            return `
-                <div class="border rounded-xl p-4 bg-gray-50">
-                    <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <div class="flex items-center gap-2 mb-2">
-                                <span class="text-xs font-semibold px-2 py-1 rounded bg-white border">${badge}</span>
-                                <span class="text-xs font-semibold px-2 py-1 rounded bg-white border">v${question.latest_version}</span>
-                            </div>
-                            <h4 class="font-semibold text-gray-800">${escapeHtml(question.latest_title)}</h4>
-                            <p class="text-sm text-gray-500 mt-1">${formatQuestionType(question.type)} · 所有者：${escapeHtml(question.owner_username || '未知用户')}</p>
-                        </div>
-                        <div class="flex flex-col gap-2 items-end">
-                            <button ${alreadySelected ? 'disabled' : ''} onclick="addLibraryQuestion('${question.question_id}', ${question.latest_version})" class="${alreadySelected ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'} px-3 py-2 rounded-lg text-sm">
-                                ${alreadySelected ? '已加入' : '加入问卷'}
-                            </button>
-                            <button onclick="openCrossStats('${question.question_id}')" class="text-sm text-purple-600 hover:underline">
-                                跨问卷统计
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
         function openLibraryDrawer() {
+            renderLibraryLists();
             document.getElementById('libraryDrawer').classList.remove('hidden');
         }
 
@@ -218,17 +496,43 @@
             document.getElementById('libraryDrawer').classList.add('hidden');
         }
 
-        async function addLibraryQuestion(questionId, version) {
-            const detailResponse = await authenticatedFetch(`/api/v1/questions/${questionId}/versions/${version}`);
-            const detailResult = await detailResponse.json();
-            if (!detailResponse.ok) {
-                alert('获取题目详情失败: ' + (detailResult.detail?.message || '未知错误'));
-                return;
+        async function fetchQuestionDetail(questionId, version) {
+            const cacheKey = `${questionId}:${version}`;
+            if (questionDetailCache[cacheKey]) {
+                return questionDetailCache[cacheKey];
             }
+            const response = await authenticatedFetch(`/api/v1/questions/${questionId}/versions/${version}`);
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.detail?.message || '获取题目详情失败');
+            }
+            questionDetailCache[cacheKey] = result.data;
+            rememberQuestion({
+                question_id: result.data.question_id,
+                latest_version: result.data.version,
+                latest_title: result.data.title,
+                type: result.data.type,
+                owner_user_id: result.data.owner_user_id,
+                is_shared: !!(getQuestionMeta(questionId)?.is_shared),
+                in_library: !!(getQuestionMeta(questionId)?.in_library)
+            });
+            return result.data;
+        }
 
+        async function addLibraryQuestion(questionId, version, detailData = null) {
             if (selectedQuestions.some((item) => item.questionId === questionId)) {
                 alert('该题已在问卷中。');
                 return;
+            }
+
+            let detail = detailData;
+            if (!detail) {
+                try {
+                    detail = await fetchQuestionDetail(questionId, version);
+                } catch (error) {
+                    alert(error.message);
+                    return;
+                }
             }
 
             selectedQuestions.push({
@@ -236,20 +540,27 @@
                 version,
                 orderIndex: selectedQuestions.length + 1,
                 snapshot: {
-                    type: detailResult.data.type,
-                    title: detailResult.data.title,
-                    isRequired: detailResult.data.isRequired,
-                    options: detailResult.data.options || [],
-                    minSelect: detailResult.data.minSelect,
-                    maxSelect: detailResult.data.maxSelect,
-                    minLength: detailResult.data.minLength,
-                    maxLength: detailResult.data.maxLength,
-                    minValue: detailResult.data.minValue,
-                    maxValue: detailResult.data.maxValue,
-                    mustBeInteger: detailResult.data.mustBeInteger
+                    type: detail.type,
+                    title: detail.title,
+                    isRequired: detail.isRequired,
+                    options: detail.options || [],
+                    minSelect: detail.minSelect,
+                    maxSelect: detail.maxSelect,
+                    minLength: detail.minLength,
+                    maxLength: detail.maxLength,
+                    minValue: detail.minValue,
+                    maxValue: detail.maxValue,
+                    mustBeInteger: detail.mustBeInteger
                 }
             });
 
+            rememberQuestion({
+                ...(getQuestionMeta(questionId) || {}),
+                question_id: questionId,
+                latest_version: Math.max(version, getQuestionMeta(questionId)?.latest_version || 0),
+                latest_title: detail.title,
+                type: detail.type
+            });
             renderEditor();
             renderLibraryLists();
             closeLibraryDrawer();
@@ -298,25 +609,25 @@
             const snapshot = getSnapshot(question);
             if (snapshot.type === 'ChoiceQuestion') {
                 return `
-                    <div class="mt-4 bg-gray-50 rounded-lg p-4 text-sm">
-                        <div class="font-medium text-gray-700 mb-2">选项</div>
-                        <ol class="list-decimal pl-5 space-y-1 text-gray-600">
+                    <div class="mt-4 rounded-2xl bg-slate-50 p-4 text-sm">
+                        <div class="font-medium text-slate-700">选项</div>
+                        <ol class="mt-2 list-decimal space-y-1 pl-5 text-slate-600">
                             ${(snapshot.options || []).map((option) => `<li>${escapeHtml(option)}</li>`).join('')}
                         </ol>
-                        <div class="mt-3 text-xs text-gray-500">最少选择数：${snapshot.minSelect ?? '-'}，最多选择数：${snapshot.maxSelect ?? '-'}</div>
+                        <div class="mt-3 text-xs text-slate-500">最少选择数：${snapshot.minSelect ?? '-'}，最多选择数：${snapshot.maxSelect ?? '-'}</div>
                     </div>
                 `;
             }
             if (snapshot.type === 'TextQuestion') {
                 return `
-                    <div class="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+                    <div class="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
                         文本长度限制：${snapshot.minLength ?? '-'} ~ ${snapshot.maxLength ?? '-'}
                     </div>
                 `;
             }
             if (snapshot.type === 'NumberQuestion') {
                 return `
-                    <div class="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+                    <div class="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
                         数值范围：${snapshot.minValue ?? '-'} ~ ${snapshot.maxValue ?? '-'}<br>
                         整数限制：${snapshot.mustBeInteger ? '仅整数' : '允许小数'}
                     </div>
@@ -332,7 +643,7 @@
 
             const container = document.getElementById('questionsContainer');
             if (selectedQuestions.length === 0) {
-                container.innerHTML = '<div class="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center text-gray-400">当前问卷还没有题目，请从题库中选择。</div>';
+                container.innerHTML = '<div class="rounded-3xl border-2 border-dashed border-slate-200 p-10 text-center text-sm text-slate-400">当前问卷还没有题目。先新建题目并保存到题库，或直接从题库中选择。</div>';
                 renderRulesSummary();
                 return;
             }
@@ -342,44 +653,45 @@
                 const rulesForQuestion = logicRules.filter((rule) => rule.sourceQuestionId === question.questionId);
                 const targetQuestions = selectedQuestions.filter((item) => item.orderIndex > question.orderIndex);
                 const rulesHtml = rulesForQuestion.map((rule) => `
-                    <div class="flex items-center space-x-2 text-sm bg-white p-2 rounded border border-blue-100 mb-2">
+                    <div class="mb-2 flex items-center gap-2 rounded-2xl border border-sky-100 bg-white p-2 text-sm">
                         <span>若为</span>
-                        <input type="text" value="${escapeHtml(rule.triggerCondition)}" placeholder="${srcQuestionPlaceholder(question)}" onchange="updateRuleAttr('${rule.ruleId}', 'triggerCondition', this.value)" class="border rounded p-1 w-24">
+                        <input type="text" value="${escapeHtml(rule.triggerCondition)}" placeholder="${srcQuestionPlaceholder(question)}" onchange="updateRuleAttr('${rule.ruleId}', 'triggerCondition', this.value)" class="w-24 rounded-xl border border-slate-200 p-2">
                         <span>跳至</span>
-                        <select onchange="updateRuleAttr('${rule.ruleId}', 'targetQuestionId', this.value)" class="border rounded p-1 flex-1">
+                        <select onchange="updateRuleAttr('${rule.ruleId}', 'targetQuestionId', this.value)" class="flex-1 rounded-xl border border-slate-200 p-2">
                             <option value="">-- 请选择题目 --</option>
                             ${targetQuestions.map((target) => `<option value="${target.questionId}" ${rule.targetQuestionId === target.questionId ? 'selected' : ''}>第${target.orderIndex}题 ${escapeHtml(getSnapshot(target).title || '')}</option>`).join('')}
                         </select>
-                        <button onclick="removeRule('${rule.ruleId}')" class="text-red-400 hover:text-red-600 px-1">×</button>
+                        <button onclick="removeRule('${rule.ruleId}')" class="px-2 text-rose-500 hover:text-rose-700">×</button>
                     </div>
                 `).join('');
 
                 return `
-                    <div class="bg-white p-6 rounded-xl shadow-sm border">
-                        <div class="flex items-start justify-between gap-4">
+                    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                        <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                             <div>
-                                <div class="text-sm text-blue-600 font-semibold">第${index + 1}题 · ${formatQuestionType(snapshot.type)} · v${question.version}</div>
-                                <h3 class="text-lg font-bold text-gray-800 mt-1">${escapeHtml(snapshot.title || '未命名题目')}</h3>
-                                <div class="text-sm text-gray-500 mt-2">
-                                    必答：${snapshot.isRequired ? '是' : '否'} · questionId：${escapeHtml(question.questionId)}
-                                </div>
+                                <div class="text-sm font-semibold text-sky-700">第${index + 1}题 · ${formatQuestionType(snapshot.type)} · v${question.version}</div>
+                                <h3 class="mt-1 text-lg font-bold text-slate-800">${escapeHtml(snapshot.title || '未命名题目')}</h3>
+                                <div class="mt-2 text-sm text-slate-500">必答：${snapshot.isRequired ? '是' : '否'}</div>
                             </div>
-                            <div class="flex flex-wrap gap-2 justify-end">
-                                <button onclick="moveQuestion('${question.questionId}', 'up')" class="px-3 py-1 text-sm border rounded hover:bg-gray-50">上移</button>
-                                <button onclick="moveQuestion('${question.questionId}', 'down')" class="px-3 py-1 text-sm border rounded hover:bg-gray-50">下移</button>
-                                <button onclick="openCrossStats('${question.questionId}')" class="px-3 py-1 text-sm bg-purple-50 text-purple-600 rounded hover:bg-purple-100">跨问卷统计</button>
-                                <button onclick="removeQuestion('${question.questionId}')" class="px-3 py-1 text-sm text-red-500 border border-red-200 rounded hover:bg-red-50">移除</button>
+                            <div class="flex flex-wrap gap-2 xl:justify-end">
+                                <button onclick="moveQuestion('${question.questionId}', 'up')" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">上移</button>
+                                <button onclick="moveQuestion('${question.questionId}', 'down')" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">下移</button>
+                                <button onclick="openQuestionCenter('${question.questionId}', ${question.version})" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">题目详情</button>
+                                <button onclick="openQuestionCenter('${question.questionId}', ${question.version}, 'versions')" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">版本历史</button>
+                                <button onclick="openQuestionCenter('${question.questionId}', ${question.version}, 'usage')" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">查看使用情况</button>
+                                <button onclick="openCrossStats('${question.questionId}')" class="rounded-full bg-fuchsia-50 px-3 py-2 text-sm font-medium text-fuchsia-700 transition hover:bg-fuchsia-100">跨问卷统计</button>
+                                <button onclick="removeQuestion('${question.questionId}')" class="rounded-full border border-rose-200 px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-50">移出问卷</button>
                             </div>
                         </div>
                         ${renderQuestionSnapshot(question)}
-                        <div class="mt-6 p-4 bg-blue-50 rounded-xl">
-                            <div class="flex justify-between items-center mb-3">
-                                <h5 class="text-xs font-bold text-blue-800 uppercase tracking-wider">跳转逻辑设置</h5>
-                                <button onclick="addRule('${question.questionId}')" class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">+ 添加规则</button>
+                        <div class="mt-6 rounded-3xl bg-sky-50 p-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <h5 class="text-xs font-bold uppercase tracking-[0.2em] text-sky-800">跳转逻辑设置</h5>
+                                <button onclick="addRule('${question.questionId}')" class="rounded-full bg-sky-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-sky-700">+ 添加规则</button>
                             </div>
-                            <div>${rulesHtml || '<p class="text-xs text-blue-300 italic">尚未配置跳转规则</p>'}</div>
+                            <div>${rulesHtml || '<p class="text-xs italic text-sky-400">尚未配置跳转规则</p>'}</div>
                         </div>
-                    </div>
+                    </article>
                 `;
             }).join('');
 
@@ -392,26 +704,458 @@
                 const source = getQuestionById(rule.sourceQuestionId);
                 const target = getQuestionById(rule.targetQuestionId);
                 if (!source || !target) return '';
-                return `<div class="p-2 bg-gray-50 rounded border border-gray-100 text-xs"><b>第${source.orderIndex}题</b> 等于 "${escapeHtml(rule.triggerCondition)}" → <b>第${target.orderIndex}题</b></div>`;
+                return `<div class="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600"><b>第${source.orderIndex}题</b> 等于 "${escapeHtml(rule.triggerCondition)}" → <b>第${target.orderIndex}题</b></div>`;
             }).filter(Boolean).join('');
-            rulesList.innerHTML = html || '<p class="text-gray-400 italic">暂无生效规则</p>';
+            rulesList.innerHTML = html || '<p class="italic text-slate-400">暂无生效规则</p>';
+        }
+
+        function openQuestionFormModal(mode, options = {}) {
+            questionFormState = {
+                mode,
+                questionId: options.questionId || null,
+                baseVersion: options.baseVersion || null
+            };
+
+            document.getElementById('questionFormModal').classList.remove('hidden');
+            document.getElementById('questionFormModal').classList.add('flex');
+
+            const isCreate = mode === 'create';
+            document.getElementById('questionFormTitle').textContent = isCreate ? '新建题目' : `基于 v${options.baseVersion} 创建新版本`;
+            document.getElementById('questionFormSubtitle').textContent = isCreate ? '先定义题目内容，再决定是否保存到题库和加入当前问卷。' : '新版本会写入同一个 questionId 的版本链。';
+            document.getElementById('questionFormSubmit').textContent = isCreate ? '创建题目' : '创建新版本';
+            document.getElementById('createOptionsBlock').classList.toggle('hidden', !isCreate);
+            document.getElementById('versionOptionsBlock').classList.toggle('hidden', isCreate);
+
+            fillQuestionForm({
+                type: 'ChoiceQuestion',
+                title: '',
+                isRequired: true,
+                options: [],
+                minSelect: null,
+                maxSelect: null
+            });
+            document.getElementById('formSaveToLibrary').checked = true;
+            document.getElementById('formAddToSurvey').checked = true;
+            document.getElementById('formAddNewVersionToSurvey').checked = false;
+
+            if (!isCreate && options.basePayload) {
+                fillQuestionForm(options.basePayload);
+            }
+        }
+
+        function closeQuestionFormModal() {
+            document.getElementById('questionFormModal').classList.add('hidden');
+            document.getElementById('questionFormModal').classList.remove('flex');
+        }
+
+        async function openVersionCreateModal(questionId, version) {
+            try {
+                const detail = await fetchQuestionDetail(questionId, version);
+                openQuestionFormModal('version', {
+                    questionId,
+                    baseVersion: version,
+                    basePayload: detail
+                });
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function submitQuestionForm() {
+            let payload;
+            try {
+                payload = buildQuestionPayloadFromForm();
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+
+            if (questionFormState.mode === 'create') {
+                const createResponse = await authenticatedFetch('/api/v1/questions', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const createResult = await createResponse.json();
+                if (!createResponse.ok) {
+                    alert('创建题目失败: ' + (createResult.detail?.message || '未知错误'));
+                    return;
+                }
+
+                const questionId = createResult.data.question_id;
+                const version = createResult.data.version;
+                const saveToLibrary = document.getElementById('formSaveToLibrary').checked;
+                const addToSurveyNow = document.getElementById('formAddToSurvey').checked;
+
+                if (saveToLibrary) {
+                    const libraryResponse = await authenticatedFetch(`/api/v1/questions/${questionId}/library`, { method: 'POST' });
+                    const libraryResult = await libraryResponse.json();
+                    if (!libraryResponse.ok) {
+                        alert('题目已创建，但加入题库失败: ' + (libraryResult.detail?.message || '未知错误'));
+                    }
+                }
+
+                const summary = {
+                    question_id: questionId,
+                    latest_version: version,
+                    latest_title: payload.title,
+                    type: payload.type,
+                    owner_username: '当前用户',
+                    is_shared: false,
+                    in_library: saveToLibrary
+                };
+                rememberQuestion(summary);
+
+                if (addToSurveyNow) {
+                    await addLibraryQuestion(questionId, version, {
+                        ...payload,
+                        question_id: questionId,
+                        version
+                    });
+                }
+
+                closeQuestionFormModal();
+                await loadLibrary();
+                renderLibraryLists();
+                return;
+            }
+
+            const versionPayload = {
+                base_version: questionFormState.baseVersion,
+                ...payload
+            };
+            const response = await authenticatedFetch(`/api/v1/questions/${questionFormState.questionId}/versions`, {
+                method: 'POST',
+                body: JSON.stringify(versionPayload)
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                alert('创建新版本失败: ' + (result.detail?.message || '未知错误'));
+                return;
+            }
+
+            const nextVersion = result.data.version;
+            rememberQuestion({
+                ...(getQuestionMeta(questionFormState.questionId) || {}),
+                question_id: questionFormState.questionId,
+                latest_version: nextVersion,
+                latest_title: payload.title,
+                type: payload.type
+            });
+
+            if (document.getElementById('formAddNewVersionToSurvey').checked) {
+                selectedQuestions = selectedQuestions.filter((question) => question.questionId !== questionFormState.questionId);
+                await addLibraryQuestion(questionFormState.questionId, nextVersion, {
+                    ...payload,
+                    question_id: questionFormState.questionId,
+                    version: nextVersion
+                });
+            }
+
+            closeQuestionFormModal();
+            await loadLibrary();
+            if (questionCenterState && questionCenterState.questionId === questionFormState.questionId) {
+                openQuestionCenter(questionFormState.questionId, nextVersion, 'versions');
+            }
+        }
+
+        function renderQuestionDetailFields(detail) {
+            const rows = [];
+            rows.push(`<div><span class="text-slate-400">题型</span><div class="mt-1 font-medium text-slate-700">${formatQuestionType(detail.type)}</div></div>`);
+            rows.push(`<div><span class="text-slate-400">标题</span><div class="mt-1 font-medium text-slate-700">${escapeHtml(detail.title)}</div></div>`);
+            rows.push(`<div><span class="text-slate-400">必答</span><div class="mt-1 font-medium text-slate-700">${detail.isRequired ? '是' : '否'}</div></div>`);
+
+            if (detail.type === 'ChoiceQuestion') {
+                rows.push(`<div class="md:col-span-2"><span class="text-slate-400">选项</span><ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-700">${(detail.options || []).map((option) => `<li>${escapeHtml(option)}</li>`).join('')}</ol></div>`);
+                rows.push(`<div><span class="text-slate-400">最少选择数</span><div class="mt-1 font-medium text-slate-700">${detail.minSelect ?? '-'}</div></div>`);
+                rows.push(`<div><span class="text-slate-400">最多选择数</span><div class="mt-1 font-medium text-slate-700">${detail.maxSelect ?? '-'}</div></div>`);
+            } else if (detail.type === 'TextQuestion') {
+                rows.push(`<div><span class="text-slate-400">最少字数</span><div class="mt-1 font-medium text-slate-700">${detail.minLength ?? '-'}</div></div>`);
+                rows.push(`<div><span class="text-slate-400">最多字数</span><div class="mt-1 font-medium text-slate-700">${detail.maxLength ?? '-'}</div></div>`);
+            } else if (detail.type === 'NumberQuestion') {
+                rows.push(`<div><span class="text-slate-400">最小值</span><div class="mt-1 font-medium text-slate-700">${detail.minValue ?? '-'}</div></div>`);
+                rows.push(`<div><span class="text-slate-400">最大值</span><div class="mt-1 font-medium text-slate-700">${detail.maxValue ?? '-'}</div></div>`);
+                rows.push(`<div><span class="text-slate-400">整数限制</span><div class="mt-1 font-medium text-slate-700">${detail.mustBeInteger ? '仅整数' : '允许小数'}</div></div>`);
+            }
+
+            return rows.join('');
+        }
+
+        function renderQuestionCenter() {
+            if (!questionCenterState) return;
+            const meta = getQuestionMeta(questionCenterState.questionId) || {};
+            const detail = questionCenterState.activeDetail;
+            const versions = questionCenterState.versions || [];
+            const usages = questionCenterState.usages || [];
+            const shares = questionCenterState.shares;
+            const shareError = questionCenterState.shareError;
+            const inLibrary = !!meta.in_library;
+            const selectedInSurvey = selectedQuestions.some((question) => question.questionId === questionCenterState.questionId);
+            const canLikelyManage = !meta.is_shared;
+
+            document.getElementById('questionCenterTitle').textContent = detail?.title || meta.latest_title || '题目详情';
+            document.getElementById('questionCenterSubtitle').textContent = `questionId: ${questionCenterState.questionId} · 当前查看版本：v${questionCenterState.activeVersion || meta.latest_version || '-'}`;
+
+            const versionCards = versions.length === 0
+                ? '<p class="text-sm text-slate-400">暂无版本信息</p>'
+                : versions.map((versionInfo) => `
+                    <div class="rounded-2xl border border-slate-200 p-4">
+                        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <div class="text-sm font-semibold text-sky-700">v${versionInfo.version}</div>
+                                <div class="mt-1 font-semibold text-slate-800">${escapeHtml(versionInfo.title)}</div>
+                                <div class="mt-1 text-sm text-slate-500">${formatQuestionType(versionInfo.type)}</div>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="viewQuestionVersion('${questionCenterState.questionId}', ${versionInfo.version})" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">查看详情</button>
+                                <button onclick="addLibraryQuestion('${questionCenterState.questionId}', ${versionInfo.version})" class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">加入问卷</button>
+                                ${canLikelyManage ? `<button onclick="openVersionCreateModal('${questionCenterState.questionId}', ${versionInfo.version})" class="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100">基于此版本创建新版本</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+            const usageRows = usages.length === 0
+                ? '<tr><td colspan="4" class="py-4 text-center text-slate-400">该题目前还没有被问卷使用</td></tr>'
+                : usages.map((usage) => `
+                    <tr class="border-b border-slate-100">
+                        <td class="py-3 pr-4">${escapeHtml(usage.survey_title)}</td>
+                        <td class="py-3 pr-4">${escapeHtml(usage.status)}</td>
+                        <td class="py-3 pr-4">v${usage.question_version}</td>
+                        <td class="py-3">第${usage.order_index}题</td>
+                    </tr>
+                `).join('');
+
+            const shareSection = shares
+                ? `
+                    <div class="space-y-4">
+                        ${canLikelyManage ? `
+                            <div class="flex flex-col gap-3 md:flex-row">
+                                <input id="shareUsernameInput" type="text" placeholder="输入要分享的用户名" class="flex-1 rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                                <button onclick="shareCurrentQuestion()" class="rounded-full bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700">分享给...</button>
+                            </div>
+                        ` : '<div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">该题来自共享访问，你可以使用和查看统计，但不能继续转授。</div>'}
+                        <div class="space-y-2">
+                            ${(shares.length === 0)
+                                ? '<p class="text-sm text-slate-400">尚未分享给其他用户</p>'
+                                : shares.map((grant) => `<div class="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-600">${escapeHtml(grant.username || grant.user_id)} <span class="text-slate-400">· ${escapeHtml(grant.shared_at || '')}</span></div>`).join('')}
+                        </div>
+                    </div>
+                `
+                : `<div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">${escapeHtml(shareError || '正在加载共享列表...')}</div>`;
+
+            document.getElementById('questionCenterContent').innerHTML = `
+                <div class="space-y-6">
+                    <section class="rounded-3xl bg-slate-50 p-5">
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="toggleLibrary('${questionCenterState.questionId}', true)" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100">
+                                ${inLibrary ? '移出题库' : '加入题库'}
+                            </button>
+                            <button ${selectedInSurvey ? 'disabled' : ''} onclick="addLibraryQuestion('${questionCenterState.questionId}', ${questionCenterState.activeVersion})" class="${selectedInSurvey ? 'cursor-not-allowed bg-slate-200 text-slate-500' : 'bg-sky-600 text-white hover:bg-sky-700'} rounded-full px-3 py-2 text-sm font-semibold transition">
+                                ${selectedInSurvey ? '已在当前问卷' : '加入当前问卷'}
+                            </button>
+                            <button onclick="openCrossStats('${questionCenterState.questionId}')" class="rounded-full bg-fuchsia-50 px-3 py-2 text-sm font-medium text-fuchsia-700 transition hover:bg-fuchsia-100">跨问卷统计</button>
+                            <button onclick="scrollQuestionCenterSection('shareSection')" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100">分享给...</button>
+                            <button onclick="scrollQuestionCenterSection('versionsSection')" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100">版本历史</button>
+                            <button onclick="scrollQuestionCenterSection('usageSection')" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100">查看使用情况</button>
+                        </div>
+                    </section>
+
+                    <section class="rounded-3xl border border-slate-200 p-5">
+                        <div class="mb-4 flex items-center justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-slate-800">当前版本详情</h3>
+                                <p class="mt-1 text-sm text-slate-500">问卷快照、版本升级和跨问卷统计都以这里的版本定义为基准。</p>
+                            </div>
+                            <span class="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">v${questionCenterState.activeVersion}</span>
+                        </div>
+                        <div class="grid gap-4 text-sm md:grid-cols-2">
+                            ${detail ? renderQuestionDetailFields(detail) : '<p class="text-slate-400">正在加载版本详情...</p>'}
+                        </div>
+                    </section>
+
+                    <section id="versionsSection" class="rounded-3xl border border-slate-200 p-5">
+                        <div class="mb-4 flex items-center justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-slate-800">版本历史</h3>
+                                <p class="mt-1 text-sm text-slate-500">版本链按 v1 → v2 → v3 顺序展开，可查看任意版本详情并基于旧版本继续演化。</p>
+                            </div>
+                        </div>
+                        <div class="space-y-3">${versionCards}</div>
+                    </section>
+
+                    <section id="shareSection" class="rounded-3xl border border-slate-200 p-5">
+                        <div class="mb-4">
+                            <h3 class="font-bold text-slate-800">分享给...</h3>
+                            <p class="mt-1 text-sm text-slate-500">共享关系按 questionId 生效，对整条版本链统一授权。</p>
+                        </div>
+                        ${shareSection}
+                    </section>
+
+                    <section id="usageSection" class="rounded-3xl border border-slate-200 p-5">
+                        <div class="mb-4">
+                            <h3 class="font-bold text-slate-800">查看使用情况</h3>
+                            <p class="mt-1 text-sm text-slate-500">这里列出该题被哪些问卷引用、使用了哪个版本以及处于什么状态。</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-slate-200 text-left text-slate-400">
+                                        <th class="pb-3 pr-4">问卷</th>
+                                        <th class="pb-3 pr-4">状态</th>
+                                        <th class="pb-3 pr-4">版本</th>
+                                        <th class="pb-3">位置</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${usageRows}</tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            `;
+        }
+
+        function scrollQuestionCenterSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        async function viewQuestionVersion(questionId, version) {
+            try {
+                const detail = await fetchQuestionDetail(questionId, version);
+                questionCenterState.activeVersion = version;
+                questionCenterState.activeDetail = detail;
+                renderQuestionCenter();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function openQuestionCenter(questionId, version = null, focusSection = null) {
+            const meta = getQuestionMeta(questionId) || {};
+            const activeVersion = version || meta.latest_version || 1;
+            questionCenterState = {
+                questionId,
+                activeVersion,
+                activeDetail: null,
+                versions: [],
+                usages: [],
+                shares: null,
+                shareError: null
+            };
+            document.getElementById('questionCenterModal').classList.remove('hidden');
+            document.getElementById('questionCenterModal').classList.add('flex');
+            document.getElementById('questionCenterContent').innerHTML = '<div class="py-20 text-center text-slate-400">加载题目详情中...</div>';
+
+            try {
+                const [versionsResponse, usageResponse, detail] = await Promise.all([
+                    authenticatedFetch(`/api/v1/questions/${questionId}`),
+                    authenticatedFetch(`/api/v1/questions/${questionId}/usage`),
+                    fetchQuestionDetail(questionId, activeVersion)
+                ]);
+
+                const versionsResult = await versionsResponse.json();
+                if (!versionsResponse.ok) {
+                    throw new Error(versionsResult.detail?.message || '获取版本链失败');
+                }
+
+                const usageResult = await usageResponse.json();
+                if (!usageResponse.ok) {
+                    throw new Error(usageResult.detail?.message || '获取使用情况失败');
+                }
+
+                questionCenterState.activeDetail = detail;
+                questionCenterState.versions = versionsResult.data.versions || [];
+                questionCenterState.usages = usageResult.data.usages || [];
+
+                const shareResponse = await authenticatedFetch(`/api/v1/questions/${questionId}/shares`);
+                const shareResult = await shareResponse.json();
+                if (shareResponse.ok) {
+                    questionCenterState.shares = shareResult.data.shared_with || [];
+                } else {
+                    questionCenterState.shareError = shareResult.detail?.message || '仅所有者可查看共享列表';
+                }
+
+                renderQuestionCenter();
+                if (focusSection) {
+                    setTimeout(() => scrollQuestionCenterSection(`${focusSection}Section`), 0);
+                }
+            } catch (error) {
+                document.getElementById('questionCenterContent').innerHTML = `<div class="rounded-3xl bg-rose-50 px-4 py-6 text-center text-rose-600">${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function closeQuestionCenterModal() {
+            document.getElementById('questionCenterModal').classList.add('hidden');
+            document.getElementById('questionCenterModal').classList.remove('flex');
+            questionCenterState = null;
+        }
+
+        async function shareCurrentQuestion() {
+            if (!questionCenterState) return;
+            const input = document.getElementById('shareUsernameInput');
+            const username = input?.value.trim();
+            if (!username) {
+                alert('请输入目标用户名');
+                return;
+            }
+
+            const response = await authenticatedFetch(`/api/v1/questions/${questionCenterState.questionId}/shares`, {
+                method: 'POST',
+                body: JSON.stringify({ username })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                alert('分享失败: ' + (result.detail?.message || '未知错误'));
+                return;
+            }
+
+            questionCenterState.shares = result.data.shared_with || [];
+            questionCenterState.shareError = null;
+            renderQuestionCenter();
+        }
+
+        async function toggleLibrary(questionId, rerenderCenter = false) {
+            const meta = getQuestionMeta(questionId) || {};
+            const method = meta.in_library ? 'DELETE' : 'POST';
+            const response = await authenticatedFetch(`/api/v1/questions/${questionId}/library`, { method });
+            const result = await response.json();
+            if (!response.ok) {
+                alert((meta.in_library ? '移出题库失败: ' : '加入题库失败: ') + (result.detail?.message || '未知错误'));
+                return;
+            }
+
+            rememberQuestion({
+                ...(meta || {}),
+                question_id: questionId,
+                in_library: result.data.in_library
+            });
+
+            await loadLibrary();
+            renderLibraryLists();
+            renderEditor();
+
+            if (rerenderCenter && questionCenterState && questionCenterState.questionId === questionId) {
+                renderQuestionCenter();
+            }
         }
 
         function renderQuestionStatistics(data) {
             if (data.type === 'ChoiceQuestion') {
                 return `
                     <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-gray-50 rounded-xl p-4">
-                                <div class="text-sm text-gray-500">覆盖问卷</div>
-                                <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <div class="text-sm text-slate-500">覆盖问卷</div>
+                                <div class="text-2xl font-bold text-slate-800">${data.survey_count}</div>
                             </div>
-                            <div class="bg-gray-50 rounded-xl p-4">
-                                <div class="text-sm text-gray-500">总回答数</div>
-                                <div class="text-2xl font-bold text-gray-800">${data.total_answers}</div>
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <div class="text-sm text-slate-500">总回答数</div>
+                                <div class="text-2xl font-bold text-slate-800">${data.total_answers}</div>
                             </div>
                         </div>
-                        <div class="bg-gray-50 rounded-xl p-4">
+                        <div class="rounded-2xl bg-slate-50 p-4">
                             <div class="relative h-80"><canvas id="questionStatsChart"></canvas></div>
                         </div>
                     </div>
@@ -420,61 +1164,61 @@
 
             if (data.type === 'NumberQuestion') {
                 const distributionRows = Object.entries(data.distribution || {}).map(([value, count]) => `
-                    <tr class="border-b">
+                    <tr class="border-b border-slate-100">
                         <td class="py-2 pr-4">${escapeHtml(value)}</td>
                         <td class="py-2">${count}</td>
                     </tr>
                 `).join('');
-                const detailRows = (data.text_list || []).map((value) => `<li class="py-1 border-b">${escapeHtml(value)}</li>`).join('');
+                const detailRows = (data.text_list || []).map((value) => `<li class="border-b border-slate-100 py-1">${escapeHtml(value)}</li>`).join('');
                 return `
                     <div class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div class="bg-gray-50 rounded-xl p-4">
-                                <div class="text-sm text-gray-500">覆盖问卷</div>
-                                <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                        <div class="grid gap-4 md:grid-cols-3">
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <div class="text-sm text-slate-500">覆盖问卷</div>
+                                <div class="text-2xl font-bold text-slate-800">${data.survey_count}</div>
                             </div>
-                            <div class="bg-gray-50 rounded-xl p-4">
-                                <div class="text-sm text-gray-500">有效回答</div>
-                                <div class="text-2xl font-bold text-gray-800">${data.valid_answers}</div>
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <div class="text-sm text-slate-500">有效回答</div>
+                                <div class="text-2xl font-bold text-slate-800">${data.valid_answers}</div>
                             </div>
-                            <div class="bg-gray-50 rounded-xl p-4">
-                                <div class="text-sm text-gray-500">平均值</div>
-                                <div class="text-2xl font-bold text-green-600">${data.average_value}</div>
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <div class="text-sm text-slate-500">平均值</div>
+                                <div class="text-2xl font-bold text-emerald-600">${data.average_value}</div>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="bg-gray-50 rounded-xl p-4">
-                                <h4 class="font-semibold mb-3">总体分布</h4>
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <h4 class="mb-3 font-semibold">总体分布</h4>
                                 <table class="w-full text-sm">
-                                    <thead><tr class="text-left text-gray-500"><th class="pb-2">数值</th><th class="pb-2">次数</th></tr></thead>
-                                    <tbody>${distributionRows || '<tr><td colspan="2" class="text-gray-400 py-2">暂无数据</td></tr>'}</tbody>
+                                    <thead><tr class="text-left text-slate-400"><th class="pb-2">数值</th><th class="pb-2">次数</th></tr></thead>
+                                    <tbody>${distributionRows || '<tr><td colspan="2" class="py-2 text-slate-400">暂无数据</td></tr>'}</tbody>
                                 </table>
                             </div>
-                            <div class="bg-gray-50 rounded-xl p-4">
-                                <h4 class="font-semibold mb-3">回答明细</h4>
-                                <ul class="text-sm max-h-72 overflow-y-auto">${detailRows || '<li class="text-gray-400">暂无数据</li>'}</ul>
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <h4 class="mb-3 font-semibold">回答明细</h4>
+                                <ul class="max-h-72 overflow-y-auto text-sm">${detailRows || '<li class="text-slate-400">暂无数据</li>'}</ul>
                             </div>
                         </div>
                     </div>
                 `;
             }
 
-            const detailRows = (data.text_list || []).map((value) => `<li class="py-2 border-b">${escapeHtml(value)}</li>`).join('');
+            const detailRows = (data.text_list || []).map((value) => `<li class="border-b border-slate-100 py-2">${escapeHtml(value)}</li>`).join('');
             return `
                 <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-gray-50 rounded-xl p-4">
-                            <div class="text-sm text-gray-500">覆盖问卷</div>
-                            <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="rounded-2xl bg-slate-50 p-4">
+                            <div class="text-sm text-slate-500">覆盖问卷</div>
+                            <div class="text-2xl font-bold text-slate-800">${data.survey_count}</div>
                         </div>
-                        <div class="bg-gray-50 rounded-xl p-4">
-                            <div class="text-sm text-gray-500">总回答数</div>
-                            <div class="text-2xl font-bold text-gray-800">${data.total_answers}</div>
+                        <div class="rounded-2xl bg-slate-50 p-4">
+                            <div class="text-sm text-slate-500">总回答数</div>
+                            <div class="text-2xl font-bold text-slate-800">${data.total_answers}</div>
                         </div>
                     </div>
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h4 class="font-semibold mb-3">文本明细</h4>
-                        <ul class="text-sm max-h-80 overflow-y-auto">${detailRows || '<li class="text-gray-400">暂无数据</li>'}</ul>
+                    <div class="rounded-2xl bg-slate-50 p-4">
+                        <h4 class="mb-3 font-semibold">文本明细</h4>
+                        <ul class="max-h-80 overflow-y-auto text-sm">${detailRows || '<li class="text-slate-400">暂无数据</li>'}</ul>
                     </div>
                 </div>
             `;
@@ -483,16 +1227,18 @@
         function renderQuestionStatsChart(distribution) {
             const canvas = document.getElementById('questionStatsChart');
             if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            new Chart(ctx, {
+            if (questionStatsChart) {
+                questionStatsChart.destroy();
+            }
+            questionStatsChart = new Chart(canvas.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: Object.keys(distribution || {}),
                     datasets: [{
                         label: '回答次数',
                         data: Object.values(distribution || {}),
-                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                        borderColor: 'rgba(59, 130, 246, 1)',
+                        backgroundColor: 'rgba(8, 145, 178, 0.72)',
+                        borderColor: 'rgba(8, 145, 178, 1)',
                         borderWidth: 1
                     }]
                 },
@@ -510,12 +1256,12 @@
             document.getElementById('questionStatsModal').classList.add('flex');
             document.getElementById('questionStatsTitle').textContent = '跨问卷统计';
             document.getElementById('questionStatsSubtitle').textContent = `questionId: ${questionId}`;
-            document.getElementById('questionStatsContent').innerHTML = '<div class="py-12 text-center text-gray-400">加载中...</div>';
+            document.getElementById('questionStatsContent').innerHTML = '<div class="py-12 text-center text-slate-400">加载中...</div>';
 
             const response = await authenticatedFetch(`/api/v1/questions/${questionId}/statistics`);
             const result = await response.json();
             if (!response.ok) {
-                document.getElementById('questionStatsContent').innerHTML = `<div class="py-12 text-center text-red-500">${escapeHtml(result.detail?.message || '获取统计失败')}</div>`;
+                document.getElementById('questionStatsContent').innerHTML = `<div class="py-12 text-center text-rose-500">${escapeHtml(result.detail?.message || '获取统计失败')}</div>`;
                 return;
             }
 
@@ -530,6 +1276,10 @@
             document.getElementById('questionStatsModal').classList.add('hidden');
             document.getElementById('questionStatsModal').classList.remove('flex');
             document.getElementById('questionStatsContent').innerHTML = '';
+            if (questionStatsChart) {
+                questionStatsChart.destroy();
+                questionStatsChart = null;
+            }
         }
 
         async function saveSchema() {
@@ -573,12 +1323,15 @@
                 return;
             }
 
-            alert('保存成功！');
+            alert('保存成功');
             await loadSchema();
             await loadLibrary();
         }
 
-        Promise.all([loadSchema(), loadLibrary()]);
+        Promise.all([loadSchema(), loadLibrary()]).then(() => {
+            renderLibraryLists();
+            renderEditor();
+        });
     </script>
 </body>
 </html>

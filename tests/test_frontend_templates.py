@@ -16,6 +16,12 @@ async def test_editor_page_contains_library_picker():
         assert response.status_code == 200
         assert "从题库选择题目" in response.text
         assert "从题库选题" in response.text
+        assert "新建题目" in response.text
+        assert "保存到题库" in response.text
+        assert "分享给..." in response.text
+        assert "版本历史" in response.text
+        assert "查看使用情况" in response.text
+        assert "移出题库" in response.text
 
 
 @pytest.mark.anyio
