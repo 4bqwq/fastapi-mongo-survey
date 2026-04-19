@@ -29,8 +29,22 @@
         </div>
     </main>
 
+    <div id="crossStatsModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h2 id="crossStatsTitle" class="text-xl font-bold text-gray-800">跨问卷统计</h2>
+                    <p id="crossStatsSubtitle" class="text-sm text-gray-500 mt-1"></p>
+                </div>
+                <button onclick="closeCrossStatsModal()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">×</button>
+            </div>
+            <div id="crossStatsContent"></div>
+        </div>
+    </div>
+
     <script>
         const surveyId = "{{ survey_id }}";
+        let crossStatsChart = null;
 
         async function loadStats() {
             const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/statistics`);
@@ -51,7 +65,14 @@
                 const card = document.createElement('div');
                 card.className = 'bg-white p-6 rounded-xl shadow-sm border flex flex-col';
                 
-                let contentHtml = `<h3 class="font-bold text-gray-800 mb-4">${data.title || qId}</h3>`;
+                let contentHtml = `
+                    <div class="flex items-start justify-between gap-4 mb-4">
+                        <h3 class="font-bold text-gray-800">${data.title || qId}</h3>
+                        <button onclick="openCrossStats('${qId}')" class="text-sm bg-purple-50 text-purple-600 px-3 py-1 rounded hover:bg-purple-100 whitespace-nowrap">
+                            跨问卷统计
+                        </button>
+                    </div>
+                `;
                 
                 if (data.type === 'ChoiceQuestion') {
                     const canvasId = `chart_${qId}`;
@@ -114,6 +135,157 @@
                     }
                 }
             });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function renderCrossStatsContent(data) {
+            if (data.type === 'ChoiceQuestion') {
+                return `
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">覆盖问卷</div>
+                                <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">总回答数</div>
+                                <div class="text-2xl font-bold text-gray-800">${data.total_answers}</div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <div class="relative h-80"><canvas id="crossStatsChartCanvas"></canvas></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.type === 'NumberQuestion') {
+                const rows = Object.entries(data.distribution || {}).map(([value, count]) => `
+                    <tr class="border-b">
+                        <td class="py-2 pr-4">${escapeHtml(value)}</td>
+                        <td class="py-2">${count}</td>
+                    </tr>
+                `).join('');
+                const detailRows = (data.text_list || []).map((value) => `<li class="py-1 border-b">${escapeHtml(value)}</li>`).join('');
+                return `
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">覆盖问卷</div>
+                                <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">有效回答</div>
+                                <div class="text-2xl font-bold text-gray-800">${data.valid_answers}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">平均值</div>
+                                <div class="text-2xl font-bold text-green-600">${data.average_value}</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold mb-3">总体分布</h4>
+                                <table class="w-full text-sm">
+                                    <thead><tr class="text-left text-gray-500"><th class="pb-2">数值</th><th class="pb-2">次数</th></tr></thead>
+                                    <tbody>${rows || '<tr><td colspan="2" class="text-gray-400 py-2">暂无数据</td></tr>'}</tbody>
+                                </table>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold mb-3">回答明细</h4>
+                                <ul class="text-sm max-h-72 overflow-y-auto">${detailRows || '<li class="text-gray-400">暂无数据</li>'}</ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const detailRows = (data.text_list || []).map((value) => `<li class="py-2 border-b">${escapeHtml(value)}</li>`).join('');
+            return `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <div class="text-sm text-gray-500">覆盖问卷</div>
+                            <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <div class="text-sm text-gray-500">总回答数</div>
+                            <div class="text-2xl font-bold text-gray-800">${data.total_answers}</div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-4">
+                        <h4 class="font-semibold mb-3">文本明细</h4>
+                        <ul class="text-sm max-h-80 overflow-y-auto">${detailRows || '<li class="text-gray-400">暂无数据</li>'}</ul>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCrossStatsChart(distribution) {
+            const canvas = document.getElementById('crossStatsChartCanvas');
+            if (!canvas) return;
+            if (crossStatsChart) {
+                crossStatsChart.destroy();
+            }
+            crossStatsChart = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(distribution || {}),
+                    datasets: [{
+                        label: '回答次数',
+                        data: Object.values(distribution || {}),
+                        backgroundColor: 'rgba(147, 51, 234, 0.7)',
+                        borderColor: 'rgba(147, 51, 234, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        async function openCrossStats(questionId) {
+            document.getElementById('crossStatsModal').classList.remove('hidden');
+            document.getElementById('crossStatsModal').classList.add('flex');
+            document.getElementById('crossStatsTitle').textContent = '跨问卷统计';
+            document.getElementById('crossStatsSubtitle').textContent = `questionId: ${questionId}`;
+            document.getElementById('crossStatsContent').innerHTML = '<div class="py-12 text-center text-gray-400">加载中...</div>';
+
+            const response = await authenticatedFetch(`/api/v1/questions/${questionId}/statistics`);
+            const result = await response.json();
+            if (!response.ok) {
+                document.getElementById('crossStatsContent').innerHTML = `<div class="py-12 text-center text-red-500">${escapeHtml(result.detail?.message || '获取统计失败')}</div>`;
+                return;
+            }
+
+            document.getElementById('crossStatsTitle').textContent = result.data.title || '跨问卷统计';
+            document.getElementById('crossStatsContent').innerHTML = renderCrossStatsContent(result.data);
+            if (result.data.type === 'ChoiceQuestion') {
+                renderCrossStatsChart(result.data.distribution);
+            }
+        }
+
+        function closeCrossStatsModal() {
+            document.getElementById('crossStatsModal').classList.add('hidden');
+            document.getElementById('crossStatsModal').classList.remove('flex');
+            document.getElementById('crossStatsContent').innerHTML = '';
+            if (crossStatsChart) {
+                crossStatsChart.destroy();
+                crossStatsChart = null;
+            }
         }
 
         loadStats();

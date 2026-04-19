@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Set
 
 from bson import ObjectId
@@ -6,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 
 from app.api.deps import get_current_user
 from app.core.database import get_database
+from app.core.time import ensure_utc, utc_now, to_zulu
 from app.models.answer import AnswerCreate
 from app.models.user import UserInDB
 
@@ -87,7 +87,7 @@ async def submit_answer(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"code": 40302, "message": "该问卷已关闭或未发布"})
 
     end_time = survey.get("end_time")
-    if end_time and end_time <= datetime.utcnow():
+    if end_time and ensure_utc(end_time) <= utc_now():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"code": 40302, "message": "该问卷已截止，无法继续提交"})
 
     payloads = answer_in.payloads
@@ -152,12 +152,12 @@ async def submit_answer(
         "respondentId": respondent_id,
         "isAnonymousSubmission": submit_as_anonymous,
         "payloads": payloads,
-        "submittedAt": datetime.utcnow(),
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow(),
+        "submittedAt": utc_now(),
+        "createdAt": utc_now(),
+        "updatedAt": utc_now(),
     }
     result = await db.answers.insert_one(answer_doc)
     return {
         "code": 200,
-        "data": {"answer_id": str(result.inserted_id), "submitted_at": answer_doc["submittedAt"].isoformat() + "Z"},
+        "data": {"answer_id": str(result.inserted_id), "submitted_at": to_zulu(answer_doc["submittedAt"])},
     }

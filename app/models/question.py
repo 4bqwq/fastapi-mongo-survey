@@ -3,19 +3,20 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field, ConfigDict
 
+from app.core.time import utc_now
 from app.models.user import PyObjectId
 
 
 class SharedGrant(BaseModel):
     user_id: PyObjectId = Field(alias="userId")
-    shared_at: datetime = Field(default_factory=datetime.utcnow, alias="sharedAt")
+    shared_at: datetime = Field(default_factory=utc_now, alias="sharedAt")
 
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 
 class LibraryGrant(BaseModel):
     user_id: PyObjectId = Field(alias="userId")
-    added_at: datetime = Field(default_factory=datetime.utcnow, alias="addedAt")
+    added_at: datetime = Field(default_factory=utc_now, alias="addedAt")
 
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
@@ -59,7 +60,7 @@ class QuestionInDB(QuestionContent):
     library_members: List[LibraryGrant] = Field(default_factory=list, alias="libraryMembers")
     previous_version_id: Optional[PyObjectId] = Field(default=None, alias="previousVersionId")
     version_chain_root_id: PyObjectId = Field(alias="versionChainRootId")
-    created_at: datetime = Field(default_factory=datetime.utcnow, alias="createdAt")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, alias="updatedAt")
+    created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
+    updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
 
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>问卷编辑器 - 问卷系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/static/js/auth.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -18,7 +19,7 @@
         </button>
     </nav>
 
-    <div class="container mx-auto p-6 flex flex-col md:flex-row gap-6">
+    <div class="container mx-auto p-6 flex flex-col xl:flex-row gap-6">
         <div class="flex-1 space-y-4">
             <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
                 <div>
@@ -39,24 +40,36 @@
                     </div>
                 </div>
             </div>
-            <div id="questionsContainer" class="space-y-4">
-                <!-- Questions -->
-            </div>
-            
-            <div class="bg-white p-6 rounded-xl border-2 border-dashed border-gray-300 flex justify-center space-x-4">
-                <button onclick="addQuestion('ChoiceQuestion')" class="text-blue-600 hover:bg-blue-50 px-4 py-2 rounded">+ 选择题</button>
-                <button onclick="addQuestion('TextQuestion')" class="text-blue-600 hover:bg-blue-50 px-4 py-2 rounded">+ 文本题</button>
-                <button onclick="addQuestion('NumberQuestion')" class="text-blue-600 hover:bg-blue-50 px-4 py-2 rounded">+ 数字题</button>
+
+            <div class="bg-white p-6 rounded-xl shadow-sm border">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800">问卷题目</h2>
+                        <p class="text-sm text-gray-500">从题库中选择题目加入当前问卷，题目内容由版本快照提供。</p>
+                    </div>
+                    <button onclick="openLibraryDrawer()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+                        从题库选题
+                    </button>
+                </div>
+                <div id="questionsContainer" class="space-y-4"></div>
             </div>
         </div>
 
-        <div class="w-full md:w-80 space-y-4">
+        <div class="w-full xl:w-96 space-y-4">
             <div class="bg-white p-6 rounded-xl shadow-sm border">
-                <h3 class="font-bold mb-4 text-sm uppercase text-gray-400">设置项说明</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-sm uppercase text-gray-400">我的题库</h3>
+                    <button onclick="loadLibrary()" class="text-sm text-blue-600 hover:underline">刷新</button>
+                </div>
+                <div id="libraryList" class="space-y-3 max-h-[30rem] overflow-y-auto"></div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-sm border">
+                <h3 class="font-bold mb-4 text-sm uppercase text-gray-400">规则说明</h3>
                 <ul class="text-xs space-y-2 text-gray-500">
-                    <li>• <b>必答题</b>：开启后用户必须填写此题。</li>
-                    <li>• <b>跳转逻辑</b>：选择题请用选项行号填写条件，如 `1` 或 `1 3`，且仅在选择组合完全一致时触发。</li>
-                    <li>• <b>校验</b>：目标题目必须在当前题目之后。</li>
+                    <li>• 跳转规则只作用于当前问卷，不会修改题库中的题目内容。</li>
+                    <li>• 选择题条件使用选项行号，如 `1` 或 `1 3`。</li>
+                    <li>• 只有当选择组合完全一致时才会触发跳转。</li>
                 </ul>
             </div>
             <div id="logicRulesSummary" class="bg-white p-6 rounded-xl shadow-sm border">
@@ -66,11 +79,37 @@
         </div>
     </div>
 
+    <div id="libraryDrawer" class="fixed inset-0 bg-black/40 hidden">
+        <div class="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl p-6 overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">从题库选择题目</h2>
+                    <p class="text-sm text-gray-500">这里展示你已加入题库的题目，可直接加入当前问卷。</p>
+                </div>
+                <button onclick="closeLibraryDrawer()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">×</button>
+            </div>
+            <div id="drawerLibraryList" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <div id="questionStatsModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h2 id="questionStatsTitle" class="text-xl font-bold text-gray-800">跨问卷统计</h2>
+                    <p id="questionStatsSubtitle" class="text-sm text-gray-500 mt-1"></p>
+                </div>
+                <button onclick="closeQuestionStatsModal()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">×</button>
+            </div>
+            <div id="questionStatsContent"></div>
+        </div>
+    </div>
+
     <script>
         const surveyId = "{{ survey_id }}";
-        let questions = [];
+        let selectedQuestions = [];
         let logicRules = [];
-        let surveyMeta = {};
+        let libraryQuestions = [];
 
         function toDatetimeLocal(value) {
             if (!value) return '';
@@ -79,192 +118,424 @@
             return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function formatQuestionType(type) {
+            if (type === 'ChoiceQuestion') return '选择题';
+            if (type === 'TextQuestion') return '文本题';
+            if (type === 'NumberQuestion') return '数字题';
+            return type;
+        }
+
+        function getSnapshot(question) {
+            return question.snapshot || {};
+        }
+
+        function getQuestionById(questionId) {
+            return selectedQuestions.find((question) => question.questionId === questionId);
+        }
+
         async function loadSchema() {
             const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/schema`);
             const result = await response.json();
-            if (response.ok) {
-                surveyMeta = {
-                    title: result.data.title || '',
-                    description: result.data.description || '',
-                    is_anonymous: !!result.data.is_anonymous,
-                    end_time: result.data.end_time || null
-                };
-                document.getElementById('surveyTitle').textContent = surveyMeta.title || '未命名问卷';
-                document.getElementById('metaTitle').value = surveyMeta.title;
-                document.getElementById('metaDescription').value = surveyMeta.description;
-                document.getElementById('metaAnonymous').checked = surveyMeta.is_anonymous;
-                document.getElementById('metaEndTime').value = toDatetimeLocal(surveyMeta.end_time);
-                questions = result.data.questions || [];
-                logicRules = result.data.logic_rules || [];
-                renderEditor();
+            if (!response.ok) {
+                alert('获取问卷失败: ' + (result.detail?.message || '未知错误'));
+                return;
             }
-        }
 
-        function addQuestion(type) {
-            const id = 'q_' + Math.random().toString(36).substr(2, 9);
-            const newQ = {
-                questionId: id,
-                type: type,
-                isRequired: true,
-                orderIndex: questions.length + 1,
-                title: '未命名题目'
-            };
-            if (type === 'ChoiceQuestion') {
-                newQ.options = ['选项1', '选项2'];
-                newQ.minSelect = 1;
-                newQ.maxSelect = 1;
-            }
-            questions.push(newQ);
+            document.getElementById('surveyTitle').textContent = result.data.title || '未命名问卷';
+            document.getElementById('metaTitle').value = result.data.title || '';
+            document.getElementById('metaDescription').value = result.data.description || '';
+            document.getElementById('metaAnonymous').checked = !!result.data.is_anonymous;
+            document.getElementById('metaEndTime').value = toDatetimeLocal(result.data.end_time);
+
+            selectedQuestions = (result.data.questions || []).sort((a, b) => a.orderIndex - b.orderIndex);
+            logicRules = result.data.logic_rules || [];
             renderEditor();
         }
 
-        function removeQuestion(id) {
-            questions = questions.filter(q => q.questionId !== id);
-            logicRules = logicRules.filter(r => r.sourceQuestionId !== id && r.targetQuestionId !== id);
-            renderEditor();
+        async function loadLibrary() {
+            const response = await authenticatedFetch('/api/v1/questions/library');
+            const result = await response.json();
+            if (!response.ok) {
+                document.getElementById('libraryList').innerHTML = `<p class="text-sm text-red-500">加载题库失败</p>`;
+                document.getElementById('drawerLibraryList').innerHTML = `<p class="text-sm text-red-500">加载题库失败</p>`;
+                return;
+            }
+            libraryQuestions = result.data.questions || [];
+            renderLibraryLists();
         }
 
-        function renderEditor() {
-            const container = document.getElementById('questionsContainer');
-            container.innerHTML = '';
+        function renderLibraryLists() {
+            const content = libraryQuestions.length === 0
+                ? '<p class="text-sm text-gray-400 italic">题库为空，请先把题加入题库。</p>'
+                : libraryQuestions.map((question) => renderLibraryCard(question)).join('');
 
-            questions.forEach((q, index) => {
-                const qDiv = document.createElement('div');
-                qDiv.className = 'bg-white p-6 rounded-xl shadow-sm border relative';
-                
-                let typeSpecHtml = '';
-                if (q.type === 'ChoiceQuestion') {
-                    typeSpecHtml = `
-                        <div class="mt-4">
-                            <label class="text-xs font-bold text-gray-400 uppercase">选项集 (每行一个)</label>
-                            <textarea onchange="updateQ('${q.questionId}', 'options', this.value.split('\\n'))" class="w-full border rounded p-2 mt-1 font-sans text-sm">${(q.options || []).join('\n')}</textarea>
+            document.getElementById('libraryList').innerHTML = content;
+            document.getElementById('drawerLibraryList').innerHTML = content;
+        }
+
+        function renderLibraryCard(question) {
+            const alreadySelected = selectedQuestions.some((item) => item.questionId === question.question_id);
+            const badge = question.is_shared ? '共享题' : '我的题';
+            return `
+                <div class="border rounded-xl p-4 bg-gray-50">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold px-2 py-1 rounded bg-white border">${badge}</span>
+                                <span class="text-xs font-semibold px-2 py-1 rounded bg-white border">v${question.latest_version}</span>
+                            </div>
+                            <h4 class="font-semibold text-gray-800">${escapeHtml(question.latest_title)}</h4>
+                            <p class="text-sm text-gray-500 mt-1">${formatQuestionType(question.type)} · 所有者：${escapeHtml(question.owner_username || '未知用户')}</p>
                         </div>
-                        <div class="grid grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="text-xs">最少选择数</label>
-                                <input type="number" min="1" value="${q.minSelect ?? ''}" onchange="updateQ('${q.questionId}', 'minSelect', this.value === '' ? null : parseInt(this.value, 10))" class="w-full border rounded p-1">
-                            </div>
-                            <div>
-                                <label class="text-xs">最多选择数</label>
-                                <input type="number" min="1" value="${q.maxSelect ?? ''}" onchange="updateQ('${q.questionId}', 'maxSelect', this.value === '' ? null : parseInt(this.value, 10))" class="w-full border rounded p-1">
-                            </div>
+                        <div class="flex flex-col gap-2 items-end">
+                            <button ${alreadySelected ? 'disabled' : ''} onclick="addLibraryQuestion('${question.question_id}', ${question.latest_version})" class="${alreadySelected ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'} px-3 py-2 rounded-lg text-sm">
+                                ${alreadySelected ? '已加入' : '加入问卷'}
+                            </button>
+                            <button onclick="openCrossStats('${question.question_id}')" class="text-sm text-purple-600 hover:underline">
+                                跨问卷统计
+                            </button>
                         </div>
-                    `;
-                } else if (q.type === 'TextQuestion') {
-                    typeSpecHtml = `
-                        <div class="grid grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="text-xs">最少字数</label>
-                                <input type="number" min="0" value="${q.minLength ?? ''}" onchange="updateQ('${q.questionId}', 'minLength', this.value === '' ? null : parseInt(this.value, 10))" class="w-full border rounded p-1">
-                            </div>
-                            <div>
-                                <label class="text-xs">最多字数</label>
-                                <input type="number" min="0" value="${q.maxLength ?? ''}" onchange="updateQ('${q.questionId}', 'maxLength', this.value === '' ? null : parseInt(this.value, 10))" class="w-full border rounded p-1">
-                            </div>
-                        </div>
-                    `;
-                } else if (q.type === 'NumberQuestion') {
-                    typeSpecHtml = `
-                        <div class="grid grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="text-xs">最小值</label>
-                                <input type="number" value="${q.minValue || ''}" onchange="updateQ('${q.questionId}', 'minValue', this.value === '' ? null : parseFloat(this.value))" class="w-full border rounded p-1">
-                            </div>
-                            <div>
-                                <label class="text-xs">最大值</label>
-                                <input type="number" value="${q.maxValue || ''}" onchange="updateQ('${q.questionId}', 'maxValue', this.value === '' ? null : parseFloat(this.value))" class="w-full border rounded p-1">
-                            </div>
-                        </div>
-                        <label class="flex items-center text-sm text-gray-700 mt-4">
-                            <input type="checkbox" ${q.mustBeInteger ? 'checked' : ''} onchange="updateQ('${q.questionId}', 'mustBeInteger', this.checked)" class="mr-2"> 仅允许整数
-                        </label>
-                    `;
+                    </div>
+                </div>
+            `;
+        }
+
+        function openLibraryDrawer() {
+            document.getElementById('libraryDrawer').classList.remove('hidden');
+        }
+
+        function closeLibraryDrawer() {
+            document.getElementById('libraryDrawer').classList.add('hidden');
+        }
+
+        async function addLibraryQuestion(questionId, version) {
+            const detailResponse = await authenticatedFetch(`/api/v1/questions/${questionId}/versions/${version}`);
+            const detailResult = await detailResponse.json();
+            if (!detailResponse.ok) {
+                alert('获取题目详情失败: ' + (detailResult.detail?.message || '未知错误'));
+                return;
+            }
+
+            if (selectedQuestions.some((item) => item.questionId === questionId)) {
+                alert('该题已在问卷中。');
+                return;
+            }
+
+            selectedQuestions.push({
+                questionId,
+                version,
+                orderIndex: selectedQuestions.length + 1,
+                snapshot: {
+                    type: detailResult.data.type,
+                    title: detailResult.data.title,
+                    isRequired: detailResult.data.isRequired,
+                    options: detailResult.data.options || [],
+                    minSelect: detailResult.data.minSelect,
+                    maxSelect: detailResult.data.maxSelect,
+                    minLength: detailResult.data.minLength,
+                    maxLength: detailResult.data.maxLength,
+                    minValue: detailResult.data.minValue,
+                    maxValue: detailResult.data.maxValue,
+                    mustBeInteger: detailResult.data.mustBeInteger
                 }
-
-                const rulesForQ = logicRules.filter(r => r.sourceQuestionId === q.questionId);
-                const targetQs = questions.filter(t => t.orderIndex > q.orderIndex);
-                
-                let rulesHtml = rulesForQ.map((r, ri) => `
-                    <div class="flex items-center space-x-2 text-sm bg-white p-2 rounded border border-blue-100 mb-2">
-                        <span>若为</span>
-                        <input type="text" value="${r.triggerCondition}" placeholder="${src_q_placeholder(q)}" onchange="updateRuleAttr('${r.ruleId}', 'triggerCondition', this.value)" class="border rounded p-1 w-24">
-                        <span>跳至</span>
-                        <select onchange="updateRuleAttr('${r.ruleId}', 'targetQuestionId', this.value)" class="border rounded p-1 flex-1">
-                            <option value="">-- 请选择题目 --</option>
-                            ${targetQs.map(t => `<option value="${t.questionId}" ${r.targetQuestionId === t.questionId ? 'selected' : ''}>${t.orderIndex}. ${t.title}</option>`).join('')}
-                        </select>
-                        <button onclick="removeRule('${r.ruleId}')" class="text-red-400 hover:text-red-600 px-1">×</button>
-                    </div>
-                `).join('');
-
-                qDiv.innerHTML = `
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="text-gray-400 text-sm">第${index + 1}题 [${q.type}]</span>
-                        <div class="flex items-center space-x-4">
-                            <label class="flex items-center text-sm font-medium text-gray-700">
-                                <input type="checkbox" ${q.isRequired ? 'checked' : ''} onchange="updateQ('${q.questionId}', 'isRequired', this.checked)" class="mr-2"> 必答
-                            </label>
-                            <button onclick="removeQuestion('${q.questionId}')" class="text-red-400 hover:text-red-600 text-sm">删除题目</button>
-                        </div>
-                    </div>
-                    <input type="text" value="${q.title || ''}" onchange="updateQ('${q.questionId}', 'title', this.value)" placeholder="请输入题目标题" class="text-lg font-bold w-full border-b focus:border-blue-500 outline-none py-1 mb-2">
-                    
-                    ${typeSpecHtml}
-
-                    <div class="mt-6 p-4 bg-blue-50 rounded-xl">
-                        <div class="flex justify-between items-center mb-3">
-                            <h5 class="text-xs font-bold text-blue-800 uppercase tracking-wider">跳转逻辑设置</h5>
-                            <button onclick="addRule('${q.questionId}')" class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">+ 添加规则</button>
-                        </div>
-                        <div id="rules_container_${q.questionId}">
-                            ${rulesHtml || '<p class="text-xs text-blue-300 italic">尚未配置跳转规则</p>'}
-                        </div>
-                    </div>
-                `;
-                container.appendChild(qDiv);
             });
-            renderRulesSummary();
+
+            renderEditor();
+            renderLibraryLists();
+            closeLibraryDrawer();
         }
 
-        function updateQ(id, field, value) {
-            const q = questions.find(q => q.questionId === id);
-            if (q) q[field] = value;
-            if (field === 'title' || field === 'isRequired') renderRulesSummary();
+        function removeQuestion(questionId) {
+            selectedQuestions = selectedQuestions.filter((question) => question.questionId !== questionId);
+            logicRules = logicRules.filter((rule) => rule.sourceQuestionId !== questionId && rule.targetQuestionId !== questionId);
+            renderEditor();
+            renderLibraryLists();
         }
 
-        function src_q_placeholder(q) {
-            return q.type === 'ChoiceQuestion' ? '如 1 3' : '请输入值';
+        function moveQuestion(questionId, direction) {
+            const index = selectedQuestions.findIndex((question) => question.questionId === questionId);
+            const targetIndex = direction === 'up' ? index - 1 : index + 1;
+            if (index < 0 || targetIndex < 0 || targetIndex >= selectedQuestions.length) return;
+            const [item] = selectedQuestions.splice(index, 1);
+            selectedQuestions.splice(targetIndex, 0, item);
+            renderEditor();
         }
 
-        function addRule(qId) {
-            const ruleId = 'r_' + Math.random().toString(36).substr(2, 9);
-            logicRules.push({ ruleId, sourceQuestionId: qId, triggerCondition: '', targetQuestionId: '' });
+        function srcQuestionPlaceholder(question) {
+            return getSnapshot(question).type === 'ChoiceQuestion' ? '如 1 3' : '请输入值';
+        }
+
+        function addRule(questionId) {
+            const ruleId = 'r_' + Math.random().toString(36).slice(2, 11);
+            logicRules.push({ ruleId, sourceQuestionId: questionId, triggerCondition: '', targetQuestionId: '' });
             renderEditor();
         }
 
         function removeRule(ruleId) {
-            logicRules = logicRules.filter(r => r.ruleId !== ruleId);
+            logicRules = logicRules.filter((rule) => rule.ruleId !== ruleId);
             renderEditor();
         }
 
         function updateRuleAttr(ruleId, attr, value) {
-            const rule = logicRules.find(r => r.ruleId === ruleId);
-            if (rule) rule[attr] = value;
+            const rule = logicRules.find((item) => item.ruleId === ruleId);
+            if (rule) {
+                rule[attr] = value;
+            }
+            renderRulesSummary();
+        }
+
+        function renderQuestionSnapshot(question) {
+            const snapshot = getSnapshot(question);
+            if (snapshot.type === 'ChoiceQuestion') {
+                return `
+                    <div class="mt-4 bg-gray-50 rounded-lg p-4 text-sm">
+                        <div class="font-medium text-gray-700 mb-2">选项</div>
+                        <ol class="list-decimal pl-5 space-y-1 text-gray-600">
+                            ${(snapshot.options || []).map((option) => `<li>${escapeHtml(option)}</li>`).join('')}
+                        </ol>
+                        <div class="mt-3 text-xs text-gray-500">最少选择数：${snapshot.minSelect ?? '-'}，最多选择数：${snapshot.maxSelect ?? '-'}</div>
+                    </div>
+                `;
+            }
+            if (snapshot.type === 'TextQuestion') {
+                return `
+                    <div class="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+                        文本长度限制：${snapshot.minLength ?? '-'} ~ ${snapshot.maxLength ?? '-'}
+                    </div>
+                `;
+            }
+            if (snapshot.type === 'NumberQuestion') {
+                return `
+                    <div class="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+                        数值范围：${snapshot.minValue ?? '-'} ~ ${snapshot.maxValue ?? '-'}<br>
+                        整数限制：${snapshot.mustBeInteger ? '仅整数' : '允许小数'}
+                    </div>
+                `;
+            }
+            return '';
+        }
+
+        function renderEditor() {
+            selectedQuestions.forEach((question, index) => {
+                question.orderIndex = index + 1;
+            });
+
+            const container = document.getElementById('questionsContainer');
+            if (selectedQuestions.length === 0) {
+                container.innerHTML = '<div class="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center text-gray-400">当前问卷还没有题目，请从题库中选择。</div>';
+                renderRulesSummary();
+                return;
+            }
+
+            container.innerHTML = selectedQuestions.map((question, index) => {
+                const snapshot = getSnapshot(question);
+                const rulesForQuestion = logicRules.filter((rule) => rule.sourceQuestionId === question.questionId);
+                const targetQuestions = selectedQuestions.filter((item) => item.orderIndex > question.orderIndex);
+                const rulesHtml = rulesForQuestion.map((rule) => `
+                    <div class="flex items-center space-x-2 text-sm bg-white p-2 rounded border border-blue-100 mb-2">
+                        <span>若为</span>
+                        <input type="text" value="${escapeHtml(rule.triggerCondition)}" placeholder="${srcQuestionPlaceholder(question)}" onchange="updateRuleAttr('${rule.ruleId}', 'triggerCondition', this.value)" class="border rounded p-1 w-24">
+                        <span>跳至</span>
+                        <select onchange="updateRuleAttr('${rule.ruleId}', 'targetQuestionId', this.value)" class="border rounded p-1 flex-1">
+                            <option value="">-- 请选择题目 --</option>
+                            ${targetQuestions.map((target) => `<option value="${target.questionId}" ${rule.targetQuestionId === target.questionId ? 'selected' : ''}>第${target.orderIndex}题 ${escapeHtml(getSnapshot(target).title || '')}</option>`).join('')}
+                        </select>
+                        <button onclick="removeRule('${rule.ruleId}')" class="text-red-400 hover:text-red-600 px-1">×</button>
+                    </div>
+                `).join('');
+
+                return `
+                    <div class="bg-white p-6 rounded-xl shadow-sm border">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="text-sm text-blue-600 font-semibold">第${index + 1}题 · ${formatQuestionType(snapshot.type)} · v${question.version}</div>
+                                <h3 class="text-lg font-bold text-gray-800 mt-1">${escapeHtml(snapshot.title || '未命名题目')}</h3>
+                                <div class="text-sm text-gray-500 mt-2">
+                                    必答：${snapshot.isRequired ? '是' : '否'} · questionId：${escapeHtml(question.questionId)}
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-2 justify-end">
+                                <button onclick="moveQuestion('${question.questionId}', 'up')" class="px-3 py-1 text-sm border rounded hover:bg-gray-50">上移</button>
+                                <button onclick="moveQuestion('${question.questionId}', 'down')" class="px-3 py-1 text-sm border rounded hover:bg-gray-50">下移</button>
+                                <button onclick="openCrossStats('${question.questionId}')" class="px-3 py-1 text-sm bg-purple-50 text-purple-600 rounded hover:bg-purple-100">跨问卷统计</button>
+                                <button onclick="removeQuestion('${question.questionId}')" class="px-3 py-1 text-sm text-red-500 border border-red-200 rounded hover:bg-red-50">移除</button>
+                            </div>
+                        </div>
+                        ${renderQuestionSnapshot(question)}
+                        <div class="mt-6 p-4 bg-blue-50 rounded-xl">
+                            <div class="flex justify-between items-center mb-3">
+                                <h5 class="text-xs font-bold text-blue-800 uppercase tracking-wider">跳转逻辑设置</h5>
+                                <button onclick="addRule('${question.questionId}')" class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">+ 添加规则</button>
+                            </div>
+                            <div>${rulesHtml || '<p class="text-xs text-blue-300 italic">尚未配置跳转规则</p>'}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
             renderRulesSummary();
         }
 
         function renderRulesSummary() {
-            const list = document.getElementById('rulesList');
-            list.innerHTML = logicRules.map(r => {
-                const src = questions.find(q => q.questionId === r.sourceQuestionId);
-                const target = questions.find(q => q.questionId === r.targetQuestionId);
-                if (!src || !target) return '';
-                return `<div class="p-2 bg-gray-50 rounded border border-gray-100 text-xs"><b>第${src.orderIndex}题</b> 等于 "${r.triggerCondition}" → <b>第${target.orderIndex}题</b></div>`;
-            }).filter(h => h).join('') || '<p class="text-gray-400 italic">暂无生效规则</p>';
+            const rulesList = document.getElementById('rulesList');
+            const html = logicRules.map((rule) => {
+                const source = getQuestionById(rule.sourceQuestionId);
+                const target = getQuestionById(rule.targetQuestionId);
+                if (!source || !target) return '';
+                return `<div class="p-2 bg-gray-50 rounded border border-gray-100 text-xs"><b>第${source.orderIndex}题</b> 等于 "${escapeHtml(rule.triggerCondition)}" → <b>第${target.orderIndex}题</b></div>`;
+            }).filter(Boolean).join('');
+            rulesList.innerHTML = html || '<p class="text-gray-400 italic">暂无生效规则</p>';
+        }
+
+        function renderQuestionStatistics(data) {
+            if (data.type === 'ChoiceQuestion') {
+                return `
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">覆盖问卷</div>
+                                <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">总回答数</div>
+                                <div class="text-2xl font-bold text-gray-800">${data.total_answers}</div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <div class="relative h-80"><canvas id="questionStatsChart"></canvas></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.type === 'NumberQuestion') {
+                const distributionRows = Object.entries(data.distribution || {}).map(([value, count]) => `
+                    <tr class="border-b">
+                        <td class="py-2 pr-4">${escapeHtml(value)}</td>
+                        <td class="py-2">${count}</td>
+                    </tr>
+                `).join('');
+                const detailRows = (data.text_list || []).map((value) => `<li class="py-1 border-b">${escapeHtml(value)}</li>`).join('');
+                return `
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">覆盖问卷</div>
+                                <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">有效回答</div>
+                                <div class="text-2xl font-bold text-gray-800">${data.valid_answers}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="text-sm text-gray-500">平均值</div>
+                                <div class="text-2xl font-bold text-green-600">${data.average_value}</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold mb-3">总体分布</h4>
+                                <table class="w-full text-sm">
+                                    <thead><tr class="text-left text-gray-500"><th class="pb-2">数值</th><th class="pb-2">次数</th></tr></thead>
+                                    <tbody>${distributionRows || '<tr><td colspan="2" class="text-gray-400 py-2">暂无数据</td></tr>'}</tbody>
+                                </table>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold mb-3">回答明细</h4>
+                                <ul class="text-sm max-h-72 overflow-y-auto">${detailRows || '<li class="text-gray-400">暂无数据</li>'}</ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const detailRows = (data.text_list || []).map((value) => `<li class="py-2 border-b">${escapeHtml(value)}</li>`).join('');
+            return `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <div class="text-sm text-gray-500">覆盖问卷</div>
+                            <div class="text-2xl font-bold text-gray-800">${data.survey_count}</div>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <div class="text-sm text-gray-500">总回答数</div>
+                            <div class="text-2xl font-bold text-gray-800">${data.total_answers}</div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-4">
+                        <h4 class="font-semibold mb-3">文本明细</h4>
+                        <ul class="text-sm max-h-80 overflow-y-auto">${detailRows || '<li class="text-gray-400">暂无数据</li>'}</ul>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderQuestionStatsChart(distribution) {
+            const canvas = document.getElementById('questionStatsChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(distribution || {}),
+                    datasets: [{
+                        label: '回答次数',
+                        data: Object.values(distribution || {}),
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        async function openCrossStats(questionId) {
+            document.getElementById('questionStatsModal').classList.remove('hidden');
+            document.getElementById('questionStatsModal').classList.add('flex');
+            document.getElementById('questionStatsTitle').textContent = '跨问卷统计';
+            document.getElementById('questionStatsSubtitle').textContent = `questionId: ${questionId}`;
+            document.getElementById('questionStatsContent').innerHTML = '<div class="py-12 text-center text-gray-400">加载中...</div>';
+
+            const response = await authenticatedFetch(`/api/v1/questions/${questionId}/statistics`);
+            const result = await response.json();
+            if (!response.ok) {
+                document.getElementById('questionStatsContent').innerHTML = `<div class="py-12 text-center text-red-500">${escapeHtml(result.detail?.message || '获取统计失败')}</div>`;
+                return;
+            }
+
+            document.getElementById('questionStatsTitle').textContent = result.data.title || '跨问卷统计';
+            document.getElementById('questionStatsContent').innerHTML = renderQuestionStatistics(result.data);
+            if (result.data.type === 'ChoiceQuestion') {
+                renderQuestionStatsChart(result.data.distribution);
+            }
+        }
+
+        function closeQuestionStatsModal() {
+            document.getElementById('questionStatsModal').classList.add('hidden');
+            document.getElementById('questionStatsModal').classList.remove('flex');
+            document.getElementById('questionStatsContent').innerHTML = '';
         }
 
         async function saveSchema() {
-            questions.forEach((q, i) => q.orderIndex = i + 1);
+            selectedQuestions.forEach((question, index) => {
+                question.orderIndex = index + 1;
+            });
 
             const metadataPayload = {
                 title: document.getElementById('metaTitle').value.trim(),
@@ -273,37 +544,41 @@
                 end_time: document.getElementById('metaEndTime').value ? new Date(document.getElementById('metaEndTime').value).toISOString() : null
             };
 
-            const metadataResp = await authenticatedFetch(`/api/v1/surveys/${surveyId}`, {
+            const metadataResponse = await authenticatedFetch(`/api/v1/surveys/${surveyId}`, {
                 method: 'PATCH',
                 body: JSON.stringify(metadataPayload)
             });
-
-            if (!metadataResp.ok) {
-                const err = await metadataResp.json();
-                alert('保存失败: ' + (err.detail?.message || JSON.stringify(err.detail)));
+            const metadataResult = await metadataResponse.json();
+            if (!metadataResponse.ok) {
+                alert('保存基础信息失败: ' + (metadataResult.detail?.message || '未知错误'));
                 return;
             }
-            
+
             const payload = {
-                questions: questions,
-                logic_rules: logicRules.filter(r => r.triggerCondition && r.targetQuestionId)
+                questions: selectedQuestions.map((question, index) => ({
+                    questionId: question.questionId,
+                    version: question.version,
+                    orderIndex: index + 1
+                })),
+                logic_rules: logicRules.filter((rule) => rule.triggerCondition && rule.targetQuestionId)
             };
 
             const response = await authenticatedFetch(`/api/v1/surveys/${surveyId}/schema`, {
                 method: 'PUT',
                 body: JSON.stringify(payload)
             });
-
-            if (response.ok) {
-                alert('保存成功！跳转逻辑已校验并更新。');
-                loadSchema(); // Reload to refresh everything
-            } else {
-                const err = await response.json();
-                alert('保存失败: ' + (err.detail?.message || JSON.stringify(err.detail)));
+            const result = await response.json();
+            if (!response.ok) {
+                alert('保存问卷结构失败: ' + (result.detail?.message || '未知错误'));
+                return;
             }
+
+            alert('保存成功！');
+            await loadSchema();
+            await loadLibrary();
         }
 
-        loadSchema();
+        Promise.all([loadSchema(), loadLibrary()]);
     </script>
 </body>
 </html>

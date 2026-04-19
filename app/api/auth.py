@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from app.models.user import UserCreate, UserOut, UserInDB
 from app.services.auth import get_password_hash, verify_password, create_access_token
 from app.core.database import get_database
-from datetime import datetime
+from app.core.time import utc_now, to_zulu
 from bson import ObjectId
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -21,8 +21,8 @@ async def register(user_in: UserCreate, db=Depends(get_database)):
     user_dict = user_in.model_dump(by_alias=True)
     password = user_dict.pop("password")
     user_dict["passwordHash"] = get_password_hash(password)
-    user_dict["createdAt"] = datetime.utcnow()
-    user_dict["updatedAt"] = datetime.utcnow()
+    user_dict["createdAt"] = utc_now()
+    user_dict["updatedAt"] = utc_now()
     user_dict["isDeleted"] = False
 
     result = await db.users.insert_one(user_dict)
@@ -33,7 +33,7 @@ async def register(user_in: UserCreate, db=Depends(get_database)):
         "data": {
             "user_id": str(result.inserted_id),
             "username": user_in.username,
-            "created_at": user_dict["createdAt"].isoformat() + "Z"
+            "created_at": to_zulu(user_dict["createdAt"])
         }
     }
 

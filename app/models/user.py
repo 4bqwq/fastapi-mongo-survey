@@ -3,6 +3,7 @@ from typing import Optional, Any
 from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler
 from pydantic_core import core_schema
 from bson import ObjectId
+from app.core.time import utc_now
 
 class PyObjectId(ObjectId):
     @classmethod
@@ -39,8 +40,8 @@ class UserCreate(UserBase):
 class UserInDB(UserBase):
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     password_hash: str = Field(alias="passwordHash")
-    created_at: datetime = Field(default_factory=datetime.utcnow, alias="createdAt")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, alias="updatedAt")
+    created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
+    updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
 
     model_config = ConfigDict(
         populate_by_name=True,

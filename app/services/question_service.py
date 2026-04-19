@@ -1,7 +1,6 @@
-from datetime import datetime
-
 from bson import ObjectId
 from fastapi import HTTPException, status
+from app.core.time import utc_now, to_zulu
 
 
 QUESTION_CONTENT_FIELDS = [
@@ -17,10 +16,6 @@ QUESTION_CONTENT_FIELDS = [
     "maxValue",
     "mustBeInteger",
 ]
-
-
-def utcnow() -> datetime:
-    return datetime.utcnow()
 
 
 def get_question_access_filter(user_id: ObjectId) -> dict:
@@ -112,7 +107,7 @@ def serialize_shared_grants(question_docs: list[dict], users_by_id: dict[ObjectI
             {
                 "user_id": str(grant["userId"]),
                 "username": user["username"] if user else None,
-                "shared_at": grant["sharedAt"].isoformat() + "Z" if grant.get("sharedAt") else None,
+                "shared_at": to_zulu(grant.get("sharedAt")),
             }
         )
     return grants
@@ -161,7 +156,7 @@ async def get_question_any_version_for_accessible_user(db, user_id: ObjectId, qu
 
 
 async def create_question(db, user_id: ObjectId, payload: dict) -> dict:
-    now = utcnow()
+    now = utc_now()
     question_id = f"q_{ObjectId()}"
     content = validate_question_content(payload)
     root_id = ObjectId()
@@ -190,7 +185,7 @@ async def create_question_version(db, user_id: ObjectId, question_id: str, base_
     latest_doc = await db.questions.find_one({"userId": user_id, "questionId": question_id}, sort=[("version", -1)])
     next_version = latest_doc["version"] + 1
     content = validate_question_content(payload)
-    now = utcnow()
+    now = utc_now()
     doc = {
         "questionId": question_id,
         "userId": user_id,
@@ -229,10 +224,10 @@ async def share_question_with_user(db, owner_id: ObjectId, question_id: str, tar
     if already_shared:
         return all_versions
 
-    grant = {"userId": target_user["_id"], "sharedAt": utcnow()}
+    grant = {"userId": target_user["_id"], "sharedAt": utc_now()}
     await db.questions.update_many(
         {"questionId": question_id, "userId": owner_id},
-        {"$push": {"sharedWith": grant}, "$set": {"updatedAt": utcnow()}},
+        {"$push": {"sharedWith": grant}, "$set": {"updatedAt": utc_now()}},
     )
     return await db.questions.find({"questionId": question_id, "userId": owner_id}, sort=[("version", 1)]).to_list(length=200)
 
@@ -380,10 +375,10 @@ async def add_question_to_library(db, user_id: ObjectId, question_id: str) -> di
     if serialize_library_state(accessible_doc, user_id):
         return accessible_doc
 
-    grant = {"userId": user_id, "addedAt": utcnow()}
+    grant = {"userId": user_id, "addedAt": utc_now()}
     await db.questions.update_many(
         {"questionId": question_id},
-        {"$push": {"libraryMembers": grant}, "$set": {"updatedAt": utcnow()}},
+        {"$push": {"libraryMembers": grant}, "$set": {"updatedAt": utc_now()}},
     )
     return await db.questions.find_one({"questionId": question_id, **get_question_access_filter(user_id)}, sort=[("version", -1)])
 
@@ -395,7 +390,7 @@ async def remove_question_from_library(db, user_id: ObjectId, question_id: str) 
 
     await db.questions.update_many(
         {"questionId": question_id},
-        {"$pull": {"libraryMembers": {"userId": user_id}}, "$set": {"updatedAt": utcnow()}},
+        {"$pull": {"libraryMembers": {"userId": user_id}}, "$set": {"updatedAt": utc_now()}},
     )
     return await db.questions.find_one({"questionId": question_id, **get_question_access_filter(user_id)}, sort=[("version", -1)])
 

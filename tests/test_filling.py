@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from bson import ObjectId
 from httpx import AsyncClient, ASGITransport
 
 from app.api.answers import get_effective_questions
+from app.core.time import utc_now
 from app.core.database import connect_to_mongo, close_mongo_connection, get_database
 from app.main import app
 
@@ -103,7 +104,7 @@ async def test_filling_validation():
         assert anonymous_answer["respondentId"] == "-1"
         assert anonymous_answer["isAnonymousSubmission"] is True
 
-        expired_time = (datetime.utcnow() - timedelta(minutes=5)).isoformat() + "Z"
+        expired_time = (utc_now() - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
         patch_resp = await ac.patch(f"/api/v1/surveys/{survey_id}", json={"end_time": expired_time}, headers=headers)
         assert patch_resp.status_code == 200
 

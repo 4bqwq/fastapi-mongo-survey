@@ -65,22 +65,23 @@
             container.innerHTML = '';
 
             surveySchema.questions.sort((a, b) => a.orderIndex - b.orderIndex).forEach(q => {
+                const snapshot = q.snapshot || {};
                 const qDiv = document.createElement('div');
                 qDiv.id = `qbox_${q.questionId}`;
                 qDiv.className = 'bg-white p-6 rounded-xl shadow-sm border transition-all duration-300';
                 
                 let inputHtml = '';
-                if (q.type === 'ChoiceQuestion') {
-                    const isMultiple = (q.maxSelect || 1) > 1;
-                    inputHtml = q.options.map(opt => `
+                if (snapshot.type === 'ChoiceQuestion') {
+                    const isMultiple = (snapshot.maxSelect || 1) > 1;
+                    inputHtml = (snapshot.options || []).map(opt => `
                         <label class="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
                             <input type="${isMultiple ? 'checkbox' : 'radio'}" name="${q.questionId}" value="${opt}" 
                                 onchange="onInputChange('${q.questionId}', this)" class="h-4 w-4 text-blue-600">
                             <span>${opt}</span>
                         </label>
                     `).join('');
-                } else if (q.type === 'NumberQuestion') {
-                    const step = q.mustBeInteger ? '1' : 'any';
+                } else if (snapshot.type === 'NumberQuestion') {
+                    const step = snapshot.mustBeInteger ? '1' : 'any';
                     inputHtml = `<input type="number" oninput="onInputChange('${q.questionId}', this)" 
                         step="${step}" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="请输入数字">`;
                 } else {
@@ -91,8 +92,8 @@
                 qDiv.innerHTML = `
                     <div class="mb-4">
                         <span class="text-blue-600 font-bold mr-2">第${q.orderIndex}题</span>
-                        <span class="font-semibold text-gray-800">${q.title}</span>
-                        ${q.isRequired ? '<span class="text-red-500 ml-1">*</span>' : ''}
+                        <span class="font-semibold text-gray-800">${snapshot.title || ''}</span>
+                        ${snapshot.isRequired ? '<span class="text-red-500 ml-1">*</span>' : ''}
                     </div>
                     <div class="space-y-2">
                         ${inputHtml}
@@ -104,10 +105,11 @@
 
         function onInputChange(qId, el) {
             const q = surveySchema.questions.find(q => q.questionId === qId);
-            if (q.type === 'ChoiceQuestion') {
+            const snapshot = q.snapshot || {};
+            if (snapshot.type === 'ChoiceQuestion') {
                 const checked = Array.from(document.querySelectorAll(`input[name="${qId}"]:checked`)).map(i => i.value);
                 payloads[qId] = checked;
-            } else if (q.type === 'NumberQuestion') {
+            } else if (snapshot.type === 'NumberQuestion') {
                 payloads[qId] = el.value === '' ? null : parseFloat(el.value);
             } else {
                 payloads[qId] = el.value;
@@ -116,8 +118,9 @@
         }
 
         function normalizeChoiceCondition(question, answers) {
+            const snapshot = question.snapshot || {};
             if (!Array.isArray(answers) || answers.length === 0) return null;
-            const indexes = answers.map(answer => question.options.indexOf(answer) + 1).filter(index => index > 0);
+            const indexes = answers.map(answer => (snapshot.options || []).indexOf(answer) + 1).filter(index => index > 0);
             if (indexes.length !== answers.length) return null;
             return indexes.sort((a, b) => a - b).join(' ');
         }
@@ -138,7 +141,7 @@
                     const rules = surveySchema.logic_rules.filter(r => r.sourceQuestionId === q.questionId);
                     for (const rule of rules) {
                         let match = false;
-                        if (q.type === 'ChoiceQuestion') {
+                        if ((q.snapshot || {}).type === 'ChoiceQuestion') {
                             const normalizedAnswer = normalizeChoiceCondition(q, ans);
                             match = normalizedAnswer !== null && normalizedAnswer === rule.triggerCondition;
                         } else {

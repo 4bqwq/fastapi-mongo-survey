@@ -3,6 +3,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field, ConfigDict
 
+from app.core.time import utc_now
 from app.models.user import PyObjectId
 
 
@@ -60,7 +61,7 @@ class SurveyInDB(SurveyBase):
     status: str = "DRAFT"
     questions: List[dict] = Field(default_factory=list)
     logic_rules: List[dict] = Field(default_factory=list, alias="logicRules")
-    created_at: datetime = Field(default_factory=datetime.utcnow, alias="createdAt")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, alias="updatedAt")
+    created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
+    updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
 
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)

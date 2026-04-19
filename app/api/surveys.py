@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List
 
 from bson import ObjectId
@@ -6,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 
 from app.api.deps import get_current_user
 from app.core.database import get_database
+from app.core.time import utc_now, to_zulu
 from app.models.survey import SurveyCreate, SurveyUpdateStatus, SurveySchemaUpdate, SurveyMetadataUpdate
 from app.models.user import UserInDB
 from app.services.question_service import build_question_snapshot, get_question_version_for_accessible_user
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/surveys", tags=["surveys"])
 
 
 def serialize_dt(value):
-    return value.isoformat() + "Z" if value else None
+    return to_zulu(value)
 
 
 def get_snapshot(question: dict) -> dict:
@@ -77,8 +77,8 @@ async def create_survey(
     survey_dict["status"] = "DRAFT"
     survey_dict["questions"] = []
     survey_dict["logicRules"] = []
-    survey_dict["createdAt"] = datetime.utcnow()
-    survey_dict["updatedAt"] = datetime.utcnow()
+    survey_dict["createdAt"] = utc_now()
+    survey_dict["updatedAt"] = utc_now()
 
     result = await db.surveys.insert_one(survey_dict)
     return {"code": 200, "data": {"survey_id": str(result.inserted_id), "status": "DRAFT"}}
@@ -137,7 +137,7 @@ async def update_survey_metadata(
 ):
     await get_owned_survey_or_404(db, survey_id, current_user)
     update_fields = metadata_in.model_dump(by_alias=True, exclude_unset=True)
-    update_fields["updatedAt"] = datetime.utcnow()
+    update_fields["updatedAt"] = utc_now()
     await db.surveys.update_one({"_id": ObjectId(survey_id)}, {"$set": update_fields})
     updated = await db.surveys.find_one({"_id": ObjectId(survey_id)})
     return {
@@ -162,7 +162,7 @@ async def update_survey_status(
     await get_owned_survey_or_404(db, survey_id, current_user)
     await db.surveys.update_one(
         {"_id": ObjectId(survey_id)},
-        {"$set": {"status": status_in.status, "updatedAt": datetime.utcnow()}},
+        {"$set": {"status": status_in.status, "updatedAt": utc_now()}},
     )
     return {
         "code": 200,
@@ -245,7 +245,7 @@ async def update_survey_schema(
 
     await db.surveys.update_one(
         {"_id": ObjectId(survey_id)},
-        {"$set": {"questions": questions_dict_list, "logicRules": rules_dict_list, "updatedAt": datetime.utcnow()}},
+        {"$set": {"questions": questions_dict_list, "logicRules": rules_dict_list, "updatedAt": utc_now()}},
     )
     return {"code": 200, "message": "Schema updated successfully"}
 
