@@ -10,6 +10,7 @@ from app.services.question_service import (
     create_question,
     create_question_version,
     get_question_version_for_accessible_user,
+    get_cross_survey_question_statistics,
     list_library_questions,
     list_accessible_question_versions,
     get_question_any_version_for_accessible_user,
@@ -244,4 +245,20 @@ async def get_question_usage(
                 for usage in usages
             ],
         },
+    }
+
+
+@router.get("/{question_id}/statistics", response_model=dict)
+async def get_question_cross_survey_statistics(
+    question_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+    db=Depends(get_database),
+):
+    accessible_question = await get_question_any_version_for_accessible_user(db, current_user.id, question_id)
+    if not accessible_question:
+        raise HTTPException(404, detail={"code": 40401, "message": "题目不存在"})
+
+    return {
+        "code": 200,
+        "data": await get_cross_survey_question_statistics(db, question_id),
     }

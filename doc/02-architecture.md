@@ -30,6 +30,7 @@ flowchart TD
         QuestionBiz --> Sharing[题目共享权限模块]
         QuestionBiz --> Library[题库标记模块]
         QuestionBiz --> Usage[题目使用查询模块]
+        QuestionBiz --> CrossStats[跨问卷统计模块]
         SurveyBiz --> Fill[问卷填写与校验模块]
         StatBiz --> Agg[聚合计算模块]
     end
@@ -42,6 +43,7 @@ flowchart TD
         Sharing --> Mongo
         Library --> Mongo
         Usage --> Mongo
+        CrossStats --> Mongo
         Fill --> Mongo
         Agg --> Mongo
     end
@@ -55,6 +57,7 @@ flowchart TD
 | **题目共享权限模块** | 管理题目所有者对指定用户的共享授权，确保被共享用户可读可用但不可改权属 |
 | **题库标记模块** | 管理用户对题目的加入题库与移出题库标记，形成用户视角下的题库浏览列表 |
 | **题目使用查询模块** | 汇总某个题在所有问卷中的引用情况，支撑用户在改题前判断影响范围 |
+| **跨问卷统计模块** | 按 `questionId` 聚合该题在多个问卷中的回答数据，并执行跨问卷统计口径校验 |
 | **问卷快照与逻辑模块** | 按问卷维度选择具体题目版本，固化快照并装配动态跳转规则 |
 | **填写校验模块** | 承接 C 端流量，执行输入边界断言、路径推演与答卷数据持久化，拦截非法提交 |
 | **数据统计模块** | 基于问卷快照执行宏观回收率统计与微观题目聚合分析，避免题库后续变更污染历史统计 |
@@ -263,4 +266,5 @@ def compute_next_question(current_q: SurveyQuestionSnapshot, payload: Any, rules
 - 当前实现新增 `questions` 集合，用于题目独立存储、版本链维护与共享授权。
 - 当前实现的题库管理在 `questions` 集合内维护按用户记录的题库标记，不额外引入独立题库集合。
 - 当前实现的题目使用查询通过扫描 `surveys.questions.questionId` 得出引用问卷列表。
+- 当前实现的跨问卷统计同样以 `surveys.questions.questionId` 为入口，再到 `answers.payloads.<questionId>` 收集答案数据。
 - 统计模块对文本题最多返回 20 条明细，对数字题最多返回 50 条明细，用于前端展示。

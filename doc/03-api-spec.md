@@ -74,7 +74,7 @@
 
 ### 二、题目库、共享与版本控制模块
 
-Stage 3 在 Stage 2 的基础上新增“题库管理”，支持加入题库、移出题库和浏览题库。跨问卷统计仍不在本阶段 API 范围内。
+Stage 4 在 Stage 3 的基础上新增“跨问卷统计”，支持按 `questionId` 汇总该题在多个问卷中的回答情况。
 
 #### 接口名称：创建题目首个版本
 
@@ -363,6 +363,77 @@ Stage 3 在 Stage 2 的基础上新增“题库管理”，支持加入题库、
 }
 ```
 
+#### 接口名称：查看题目的跨问卷统计
+
+**请求方式与路径**：`GET /api/v1/questions/{question_id}/statistics`
+
+**请求头/鉴权**：`Authorization: Bearer <Token>`
+
+**说明**：
+
+- 只有题目所有者和已获共享权限的用户可以查看。
+- 统计按 `questionId` 聚合该题在所有引用问卷中的回答。
+- 若该题在不同问卷快照中存在多种题型版本，接口返回 422，拒绝做统一统计。
+
+**选择题返回示例**：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "question_id": "q_bank_001",
+    "type": "ChoiceQuestion",
+    "title": "你的年龄段",
+    "survey_count": 3,
+    "total_answers": 120,
+    "distribution": {
+      "18岁以下": 12,
+      "18-25岁": 55,
+      "26-35岁": 38,
+      "36岁及以上": 15
+    }
+  }
+}
+```
+
+**数字题返回示例**：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "question_id": "q_bank_002",
+    "type": "NumberQuestion",
+    "title": "你的年龄",
+    "survey_count": 4,
+    "valid_answers": 86,
+    "average_value": 27.35,
+    "distribution": {
+      "18": 3,
+      "19": 5,
+      "20": 8
+    },
+    "text_list": ["18", "19", "20"]
+  }
+}
+```
+
+**文本题返回示例**：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "question_id": "q_bank_003",
+    "type": "TextQuestion",
+    "title": "你的建议",
+    "survey_count": 2,
+    "total_answers": 37,
+    "text_list": ["希望优化加载速度", "增加导出功能"]
+  }
+}
+```
+
 ------
 
 ### 三、问卷管理与配置模块
@@ -569,6 +640,6 @@ Stage 3 在 Stage 2 的基础上新增“题库管理”，支持加入题库、
 
 ### 六、当前实现补充
 
-- Stage 3 没有提供题目删除、恢复旧版本、题库管理页面、跨问卷统计接口。
+- Stage 4 没有提供题目删除、恢复旧版本、题库管理页面接口。
 - `GET /api/v1/surveys/{survey_id}/schema` 返回的是问卷快照，而不是题库实时版本。
 - 同一 `questionId` 的多个版本可以同时被不同问卷引用，也可以在同一时刻分别存在于多个已发布问卷中。

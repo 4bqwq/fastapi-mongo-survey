@@ -268,6 +268,110 @@ async def list_question_usages(db, question_id: str) -> list[dict]:
     return usages
 
 
+async def list_question_snapshot_usages(db, question_id: str) -> list[dict]:
+    cursor = db.surveys.find({"questions.questionId": question_id})
+    surveys = await cursor.to_list(length=500)
+    snapshot_usages = []
+    for survey in surveys:
+        for question in survey.get("questions", []):
+            if question["questionId"] == question_id:
+                snapshot_usages.append(
+                    {
+                        "surveyId": survey["_id"],
+                        "surveyTitle": survey["title"],
+                        "status": survey["status"],
+                        "version": question["version"],
+                        "snapshot": question["snapshot"],
+                    }
+                )
+    return snapshot_usages
+
+
+def ensure_consistent_cross_survey_type(snapshot_usages: list[dict]) -> tuple[str, str]:
+    if not snapshot_usages:
+        raise HTTPException(404, detail={"code": 40401, "message": "题目暂无跨问卷统计数据"})
+
+    snapshot_types = {usage["snapshot"]["type"] for usage in snapshot_usages}
+    if len(snapshot_types) > 1:
+        raise HTTPException(422, detail={"code": 42201, "message": "该题存在多种题型版本，无法直接合并统计"})
+
+    first_snapshot = snapshot_usages[0]["snapshot"]
+    return first_snapshot["type"], first_snapshot.get("title", "")
+
+
+async def get_cross_survey_question_statistics(db, question_id: str) -> dict:
+    snapshot_usages = await list_question_snapshot_usages(db, question_id)
+    question_type, title = ensure_consistent_cross_survey_type(snapshot_usages)
+    survey_ids = list({usage["surveyId"] for usage in snapshot_usages})
+    survey_count = len(survey_ids)
+
+    if question_type == "ChoiceQuestion":
+        total_answers = await db.answers.count_documents({"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$exists": True}})
+        pipeline = [
+            {"$match": {"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$exists": True}}},
+            {"$unwind": f"$payloads.{question_id}"},
+            {"$group": {"_id": f"$payloads.{question_id}", "count": {"$sum": 1}}},
+        ]
+        results = await db.answers.aggregate(pipeline).to_list(length=200)
+        return {
+            "question_id": question_id,
+            "type": question_type,
+            "title": title,
+            "survey_count": survey_count,
+            "total_answers": total_answers,
+            "distribution": {result["_id"]: result["count"] for result in results},
+        }
+
+    if question_type == "NumberQuestion":
+        pipeline = [
+            {"$match": {"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$ne": None}}},
+            {"$group": {"_id": None, "average": {"$avg": f"$payloads.{question_id}"}, "count": {"$sum": 1}}},
+        ]
+        results = await db.answers.aggregate(pipeline).to_list(length=1)
+        avg_val = results[0]["average"] if results else 0
+        count = results[0]["count"] if results else 0
+
+        distribution_pipeline = [
+            {"$match": {"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$ne": None}}},
+            {"$group": {"_id": f"$payloads.{question_id}", "count": {"$sum": 1}}},
+            {"$sort": {"_id": 1}},
+        ]
+        distribution_results = await db.answers.aggregate(distribution_pipeline).to_list(length=500)
+        detail_results = await db.answers.find(
+            {"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$ne": None}},
+            {f"payloads.{question_id}": 1},
+        ).limit(50).to_list(length=50)
+
+        return {
+            "question_id": question_id,
+            "type": question_type,
+            "title": title,
+            "survey_count": survey_count,
+            "valid_answers": count,
+            "average_value": round(float(avg_val), 2) if count else 0.0,
+            "distribution": {str(result["_id"]): result["count"] for result in distribution_results},
+            "text_list": [str(item["payloads"][question_id]) for item in detail_results if question_id in item.get("payloads", {})],
+        }
+
+    if question_type == "TextQuestion":
+        total_answers = await db.answers.count_documents({"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$ne": ""}})
+        results = await db.answers.find(
+            {"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$ne": ""}},
+            {f"payloads.{question_id}": 1},
+        ).limit(50).to_list(length=50)
+        text_list = [item["payloads"][question_id] for item in results if question_id in item.get("payloads", {})]
+        return {
+            "question_id": question_id,
+            "type": question_type,
+            "title": title,
+            "survey_count": survey_count,
+            "total_answers": total_answers,
+            "text_list": text_list,
+        }
+
+    raise HTTPException(422, detail={"code": 42201, "message": "该题型暂不支持跨问卷统计"})
+
+
 async def add_question_to_library(db, user_id: ObjectId, question_id: str) -> dict:
     accessible_doc = await get_question_any_version_for_accessible_user(db, user_id, question_id)
     if not accessible_doc:
