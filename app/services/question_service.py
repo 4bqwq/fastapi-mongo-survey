@@ -221,13 +221,19 @@ async def share_question_with_user(db, owner_id: ObjectId, question_id: str, tar
 
     all_versions = await db.questions.find({"questionId": question_id, "userId": owner_id}).to_list(length=200)
     already_shared = any(grant["userId"] == target_user["_id"] for grant in all_versions[0].get("sharedWith", []))
-    if already_shared:
+    already_in_library = any(grant["userId"] == target_user["_id"] for grant in all_versions[0].get("libraryMembers", []))
+    if already_shared and already_in_library:
         return all_versions
 
-    grant = {"userId": target_user["_id"], "sharedAt": utc_now()}
+    update_ops = {"$set": {"updatedAt": utc_now()}}
+    if not already_shared:
+        update_ops.setdefault("$push", {})["sharedWith"] = {"userId": target_user["_id"], "sharedAt": utc_now()}
+    if not already_in_library:
+        update_ops.setdefault("$push", {})["libraryMembers"] = {"userId": target_user["_id"], "addedAt": utc_now()}
+
     await db.questions.update_many(
         {"questionId": question_id, "userId": owner_id},
-        {"$push": {"sharedWith": grant}, "$set": {"updatedAt": utc_now()}},
+        update_ops,
     )
     return await db.questions.find({"questionId": question_id, "userId": owner_id}, sort=[("version", 1)]).to_list(length=200)
 

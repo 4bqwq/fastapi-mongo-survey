@@ -26,6 +26,16 @@ def get_question_label(question: dict) -> str:
     return f"第{question['orderIndex']}题"
 
 
+def serialize_schema_question(question: dict) -> dict:
+    return {
+        "questionId": question["questionId"],
+        "version": question["version"],
+        "versionId": str(question["versionId"]) if question.get("versionId") is not None else None,
+        "orderIndex": question["orderIndex"],
+        "snapshot": question.get("snapshot", {}),
+    }
+
+
 def normalize_choice_condition(raw_condition: str, question: dict) -> str:
     snapshot = get_snapshot(question)
     q_label = get_question_label(question)
@@ -122,7 +132,7 @@ async def get_survey_schema(survey_id: str, db=Depends(get_database)):
             "is_anonymous": survey.get("is_anonymous", False),
             "status": survey["status"],
             "end_time": serialize_dt(survey.get("end_time")),
-            "questions": survey.get("questions", []),
+            "questions": [serialize_schema_question(question) for question in survey.get("questions", [])],
             "logic_rules": survey.get("logicRules", []),
         },
     }

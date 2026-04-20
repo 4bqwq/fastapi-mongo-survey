@@ -63,6 +63,13 @@ async def test_filling_validation():
             },
             headers=headers,
         )
+        schema_resp = await ac.get(f"/api/v1/surveys/{survey_id}/schema")
+        assert schema_resp.status_code == 200
+        schema_data = schema_resp.json()["data"]
+        assert schema_data["questions"][0]["questionId"] == q1_id
+        assert isinstance(schema_data["questions"][0]["versionId"], str)
+        assert schema_data["questions"][0]["snapshot"]["title"] == "Req Q"
+
         await ac.patch(f"/api/v1/surveys/{survey_id}/status", json={"status": "PUBLISHED"}, headers=headers)
 
         resp = await ac.post(f"/api/v1/surveys/{survey_id}/answers", json={"payloads": {q2_id: 5}}, headers=headers)

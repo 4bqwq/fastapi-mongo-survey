@@ -70,6 +70,14 @@ async def test_question_sharing_and_usage_query():
         assert share_resp.status_code == 200
         assert share_resp.json()["data"]["shared_with"][0]["username"] == "share_recipient"
 
+        recipient_library_resp = await ac.get("/api/v1/questions/library", headers=recipient_headers)
+        assert recipient_library_resp.status_code == 200
+        recipient_library_questions = recipient_library_resp.json()["data"]["questions"]
+        assert len(recipient_library_questions) == 1
+        assert recipient_library_questions[0]["question_id"] == question_id
+        assert recipient_library_questions[0]["is_shared"] is True
+        assert recipient_library_questions[0]["in_library"] is True
+
         shares_resp = await ac.get(f"/api/v1/questions/{question_id}/shares", headers=owner_headers)
         assert shares_resp.status_code == 200
         assert shares_resp.json()["data"]["shared_with"][0]["username"] == "share_recipient"
