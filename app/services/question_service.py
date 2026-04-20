@@ -341,7 +341,7 @@ async def get_cross_survey_question_statistics(db, question_id: str) -> dict:
         detail_results = await db.answers.find(
             {"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$ne": None}},
             {f"payloads.{question_id}": 1},
-        ).limit(50).to_list(length=50)
+        ).sort("submittedAt", 1).limit(50).to_list(length=50)
 
         return {
             "question_id": question_id,
@@ -359,7 +359,7 @@ async def get_cross_survey_question_statistics(db, question_id: str) -> dict:
         results = await db.answers.find(
             {"surveyId": {"$in": survey_ids}, f"payloads.{question_id}": {"$ne": ""}},
             {f"payloads.{question_id}": 1},
-        ).limit(50).to_list(length=50)
+        ).sort("submittedAt", 1).limit(50).to_list(length=50)
         text_list = [item["payloads"][question_id] for item in results if question_id in item.get("payloads", {})]
         return {
             "question_id": question_id,

@@ -52,6 +52,11 @@
 - `{ questionId: 1, "sharedWith.userId": 1 }`
 - `{ questionId: 1, "libraryMembers.userId": 1 }`
 
+**代码实现状态**：
+
+- 当前后端会在数据库连接初始化阶段自动调用 Motor `create_indexes`，已落地以下索引：
+- `questions`: `{ questionId: 1, version: 1 }` 唯一索引、`{ userId: 1, questionId: 1 }`、`{ versionChainRootId: 1, version: 1 }`
+
 ------
 
 ### 集合：`surveys`（问卷配置与快照表）
@@ -99,6 +104,11 @@
 - 问卷装配题目时，允许引用“自己拥有的题目版本”或“别人共享给自己的题目版本”。
 - 对外 API 返回问卷结构时，`surveys.questions.versionId` 需要转换成字符串，不能把 BSON `ObjectId` 直接透传给 JSON 响应。
 
+**索引实现状态**：
+
+- 当前代码已在连接初始化时自动创建以下索引：
+- `surveys`: `{ userId: 1, createdAt: -1 }`、`{ status: 1 }`、`{ "questions.questionId": 1 }`
+
 ------
 
 ### 集合：`answers`（答卷明细表）
@@ -120,6 +130,11 @@
 
 - `payloads` 继续使用 `questionId` 作为键，因为问卷快照内部的 `questionId` 在单份问卷内保持稳定。
 - 单问卷统计与跨问卷统计都必须结合问卷快照解释答案，而不能回查题库最新版本。
+
+**索引实现状态**：
+
+- 当前代码已在连接初始化时自动创建以下索引：
+- `answers`: `{ surveyId: 1, submittedAt: -1 }`、`{ surveyId: 1, respondentId: 1 }`
 
 ------
 
@@ -143,6 +158,6 @@
 
 ### 五、当前实现补充说明
 
-- 当前代码不会自动创建索引，也不会自动执行 MongoDB 分片配置。
+- 当前代码会在数据库连接初始化阶段自动创建 `questions`、`surveys`、`answers` 的核心查询索引，但不会自动执行 MongoDB 分片配置。
 - Stage 4 已支持题目分享、题目使用查询、题库管理与跨问卷统计，但仍不支持题库管理页面。
 - 当前 `surveys` 集合实际继续使用字段名 `is_anonymous`、`end_time`、`logicRules`，与现有代码风格保持一致。

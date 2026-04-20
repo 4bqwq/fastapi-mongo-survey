@@ -301,7 +301,7 @@ async def get_survey_statistics(
             detail_results = await db.answers.find(
                 {"surveyId": survey_object_id, f"payloads.{q_id}": {"$ne": None}},
                 {f"payloads.{q_id}": 1},
-            ).limit(50).to_list(length=50)
+            ).sort("submittedAt", 1).limit(50).to_list(length=50)
             micro_stats[q_id] = {
                 "type": q_type,
                 "title": q_title,
@@ -313,7 +313,7 @@ async def get_survey_statistics(
             results = await db.answers.find(
                 {"surveyId": survey_object_id, f"payloads.{q_id}": {"$ne": ""}},
                 {f"payloads.{q_id}": 1},
-            ).limit(20).to_list(length=20)
+            ).sort("submittedAt", 1).limit(20).to_list(length=20)
             text_list = [item["payloads"][q_id] for item in results if q_id in item.get("payloads", {})]
             micro_stats[q_id] = {
                 "type": q_type,
